@@ -45,11 +45,11 @@ See [examples/showcase.mjs](examples/showcase.mjs) for a full showcase recording
 
 ## Links
 
-- [Website](https://nextdemo.dev)
+- [Website](https://nextdemo.app)
 - [npm](https://www.npmjs.com/package/nextdemo)
 
 ## License
 
 This repository (the Claude Code plugin files — skill definitions, example scripts, and manifests) is licensed under the [MIT License](LICENSE).
 
-**NextDemo itself**, the CLI tool this plugin invokes, is proprietary software licensed separately under its own EULA. See [nextdemo.dev](https://nextdemo.dev) for details.
+**NextDemo itself**, the CLI tool this plugin invokes, is proprietary software licensed separately under its own EULA. See [nextdemo.app](https://nextdemo.app) for details.

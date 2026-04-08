@@ -28,4 +28,4 @@ manifests, and documentation).
 
 NextDemo itself (the CLI tool installed via `npm install nextdemo` that this
 plugin invokes) is proprietary software licensed separately under its own
-End User License Agreement. See https://nextdemo.dev for details.
+End User License Agreement. See https://nextdemo.app for details.
