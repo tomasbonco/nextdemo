@@ -805,7 +805,7 @@ The script needs `nextdemo` (which exports `nextdemo/playwright`) and `playwrigh
 
 ```bash
 npm install playwright
-npm install /path/to/recordero/app
+npm install /path/to/nextdemo/app
 ```
 
 ## Before Writing a Script

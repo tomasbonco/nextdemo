@@ -21,23 +21,27 @@ NextDemo ships with a recording skill that teaches your AI assistant how to writ
 
 ### Cursor
 
-Copy the skill into your project:
+Download the skill into your project:
 
 ```bash
-cp -r skills/nextdemo-record .cursor/skills/nextdemo-record
+mkdir -p .cursor/skills/nextdemo-record
+curl -fsSL https://raw.githubusercontent.com/tomasbonco/nextdemo/main/skills/nextdemo-record/SKILL.md \
+  -o .cursor/skills/nextdemo-record/SKILL.md
 ```
 
 Or install globally:
 
 ```bash
-cp -r skills/nextdemo-record ~/.cursor/skills/nextdemo-record
+mkdir -p ~/.cursor/skills/nextdemo-record
+curl -fsSL https://raw.githubusercontent.com/tomasbonco/nextdemo/main/skills/nextdemo-record/SKILL.md \
+  -o ~/.cursor/skills/nextdemo-record/SKILL.md
 ```
 
 ### Other editors
 
-Any editor supporting the [Agent Skills](https://agentskills.io) standard can use `skills/nextdemo-record/SKILL.md`. Copy it into your editor's skills directory.
+Any editor supporting the [Agent Skills](https://agentskills.io) standard can use [`skills/nextdemo-record/SKILL.md`](skills/nextdemo-record/SKILL.md). Download it into your editor's skills directory with the same `curl` command above, pointed at the right path.
 
-For editors without skills support, you can paste the contents of [skills/nextdemo-record/SKILL.md](skills/nextdemo-record/SKILL.md) directly into your AI assistant's context.
+For editors without skills support, you can paste the contents of [`SKILL.md`](skills/nextdemo-record/SKILL.md) directly into your AI assistant's context.
 
 ## Recording Script Example
 
