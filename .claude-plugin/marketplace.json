@@ -1,0 +1,9 @@
+{
+  "name": "tomasbonco-nextdemo",
+  "plugins": [
+    {
+      "name": "nextdemo-record",
+      "source": "."
+    }
+  ]
+}
