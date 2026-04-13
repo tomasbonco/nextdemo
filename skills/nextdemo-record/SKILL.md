@@ -369,6 +369,48 @@ const session = await nextdemo.startRecording({
 });
 ```
 
+## Custom Interstitial Screens
+
+When the user wants title cards, chapter dividers, or branded content between scenes — anything that doesn't exist in the app itself — offer to create a local HTML file and navigate the Electron window to it during a pause.
+
+### Pattern
+
+1. Create an HTML file next to the recording script
+2. Pause recording, navigate to the HTML file, compose the shot, resume
+
+```typescript
+// Show a title card between scenes
+await session.pause();
+await session.page.goto(`file://${path.join(__dirname, 'title-card.html')}`, {
+  waitUntil: 'domcontentloaded',
+});
+await session.frame(APP, 'close-up', { duration: 0 });
+await session.resume();
+await session.page.waitForTimeout(2500);  // hold the title card
+```
+
+### Example HTML
+
+A minimal centered title card:
+
+```html
+<!-- title-card.html -->
+<!DOCTYPE html>
+<html>
+<body style="margin:0; display:flex; align-items:center; justify-content:center;
+             height:100vh; background:#1a1a2e; color:#fff; font-family:system-ui;">
+  <div style="text-align:center;">
+    <h1 style="font-size:48px; font-weight:700; margin:0;">Feature Overview</h1>
+    <p style="font-size:24px; opacity:0.7; margin-top:12px;">Everything you need to know</p>
+  </div>
+</body>
+</html>
+```
+
+Style the HTML to match the video's visual identity — use the same background color/gradient, fonts, and color palette as the recording config. These screens should feel like part of the video, not a jarring cut to a different aesthetic.
+
+**Offer to create these HTML files** whenever the user describes content that isn't part of their app: section titles, "before vs. after" cards, feature lists, step numbers, branded intros/outros, or callout screens.
+
 ## Directing Principles
 
 **You are not writing E2E tests.** You are directing a professional product tour. Every decision — zoom level, timing, camera move — should be driven by **intent**: what does the viewer need to focus on right now?
@@ -463,7 +505,23 @@ await session.page.waitForTimeout(1500);
 
 Not every shot needs all four beats. If the focus is already where it needs to be, skip the zoom. If the result is visible in the current frame, don't pull back.
 
-### 5. Parallel Actions — Zoom + Cursor Together
+### 5. Hover Before Clicking
+
+Before every click, hover on the target element and wait 300ms. From the viewer's perspective, this is the difference between a cursor that teleports and clicks vs. one that lands, lets the element highlight, then acts. The hover state (color change, underline, tooltip) gives the viewer a visual cue that something is about to happen.
+
+```typescript
+// GOOD — cursor arrives, element highlights, then click
+await session.page.hover('.submit-button');
+await session.page.waitForTimeout(300);
+await session.page.click('.submit-button');
+
+// BAD — click teleports, viewer can't track what happened
+await session.page.click('.submit-button');
+```
+
+Apply this to every click in standard demos. In [swift reels](#swift-reel--dynamic-showcase-directing), skip the hover for speed — reserve hover + pause for the final interaction only.
+
+### 6. Parallel Actions — Zoom + Cursor Together
 
 When refocusing to a new area, move the cursor simultaneously with the frame instead of sequentially. `session.frame()` returns immediately after sending the command — the animation plays during subsequent actions.
 
@@ -479,7 +537,7 @@ await session.page.waitForTimeout(500);            // wait for frame to finish
 await session.page.click('.size-selector');        // then move cursor separately
 ```
 
-### 6. Cursor Follow for Multi-Step Sequences
+### 7. Cursor Follow for Multi-Step Sequences
 
 When the user performs several actions in sequence (clicking through tabs, filling a form), use `followCursor` to keep the camera tracking naturally. Set zoom level before enabling — don't pass zoom param to `followCursor()`.
 
@@ -492,7 +550,7 @@ await session.page.click('.option-2');
 await session.stopFollowing();
 ```
 
-### 7. Typing — Match the Intent
+### 8. Typing — Match the Intent
 
 Typing isn't always a close-up moment. Zoom level depends on what the shot is about.
 
@@ -511,7 +569,7 @@ await session.page.fill('#company', 'Acme Corp');
 await session.page.waitForTimeout(400);
 ```
 
-### 8. Select/Dropdown Interactions Need Space
+### 9. Select/Dropdown Interactions Need Space
 
 Dropdowns open overlays that need time to render and be seen.
 
@@ -524,7 +582,7 @@ await session.page.selectOption('#category-select', 'urgent');
 await session.page.waitForTimeout(600);           // let viewer see selection
 ```
 
-### 9. Use Pause to Skip the Boring Parts
+### 10. Use Pause to Skip the Boring Parts
 
 Don't make the viewer watch loading screens or repetitive setup. Pause, do the boring work, resume.
 
@@ -541,7 +599,7 @@ await session.resume();
 await session.page.waitForTimeout(800);           // let viewer absorb the result
 ```
 
-### 10. Spotlights Direct Attention
+### 11. Spotlights Direct Attention
 
 When a screen is busy, use an inverted mask to darken everything except the element you're about to interact with.
 
@@ -685,10 +743,10 @@ await app.close();
 
 ### Hover Only for the Final Payoff
 
-Use click-only throughout. Reserve hover → wait → click for exactly one moment: the final interaction. The pause between hover and click builds anticipation.
+Unlike standard demos where you [hover before every click](#5-hover-before-clicking), swift reels skip the hover for speed. Use click-only throughout. Reserve hover → wait → click for exactly one moment: the final interaction. The pause between hover and click builds anticipation against the backdrop of rapid-fire clicks.
 
 ```typescript
-// Throughout the video: just click
+// Throughout the reel: just click (no hover)
 await session.page.click('#some-button');
 
 // Final scene: hover + anticipation + click
