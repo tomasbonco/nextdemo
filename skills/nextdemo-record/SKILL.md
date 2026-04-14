@@ -165,11 +165,13 @@ const mask = await session.mask(selector, opts?)
 |--------|------|---------|-------------|
 | `color` | `[r, g, b, a]` | `[0, 0, 0, 0]` | RGBA — RGB values 0–255, alpha 0–1 |
 | `blur` | `number` | `0` | Blur strength 0–1 |
-| `distance` | `number` | `0` | Padding around element in px. **Negative values crop into the element** (mask smaller than element) |
-| `feather` | `number` | `0` | Soft-edge gradient in px |
+| `distance` | `number` | `0` | Padding around element in output px. **Negative values crop into the element** (mask smaller than element) |
+| `feather` | `number` | `0` | Soft-edge gradient width in output px |
 | `inverted` | `boolean` | `false` | `true` = spotlight (dark overlay with element cut out) |
-| `borderRadius` | `number` | inherited | Override corner radius. Use `0` for sharp rectangular mask |
+| `borderRadius` | `number` | inherited | Override corner radius in output px. Use `0` for sharp rectangular mask |
 | `z` | `number` | `0` | Layer order for compositing (higher = on top) |
+
+**Pixel units:** `distance`, `feather`, and `borderRadius` are in **output video pixels** — the values you specify are what you see at the final output resolution, regardless of whether you use a higher internal render resolution (virtual display). A `feather: 5` produces a ~5px soft edge in the output; you don't need to pre-scale it for the virtual display.
 
 ### MaskHandle Methods
 
