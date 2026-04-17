@@ -40,7 +40,7 @@ await app.close();
 
 | Function | Description |
 |----------|-------------|
-| `nextdemo.startRecording({ app, fps?, name?, config? })` | Start capture. Returns `RecordingSession`. |
+| `nextdemo.startRecording({ app, fps?, name?, config?, onStart? })` | Start capture. Returns `RecordingSession`. `onStart` callback receives the session and stamps all actions at frame 0. |
 | `session.frame(selector, framing?, opts?)` | Frame camera on element — backward-looking: the camera is already in position before the next action plays. Framing: `'super-close-up'`, `'close-up'` (default), `'medium'`, `'wide'`. Optional `opts: { duration?: number, easing?: string }` overrides transition. |
 | `session.frame(APP, framing?, opts?)` | Frame camera on full app window. `APP` imported from `@nextdemo/playwright`. Use `session.frame(APP, 'wide')` to reset to full view. |
 | `session.zoom(selector, framing?, opts?)` | Zoom camera to element — the transition starts now (forward-looking). The viewer watches the camera travel. Same framing levels and opts as `frame()`. |
@@ -101,6 +101,30 @@ const session = await nextdemo.startRecording({
   },
 });
 ```
+
+### onStart — First-Frame Setup
+
+For element-specific initial framing, cursor visibility, masks, or follow modes that must apply from the very first rendered frame, use `onStart`. Without it, actions like `frame('.element', 'close-up')` called after `startRecording` take effect a few frames in — causing a brief wide-to-close-up pop.
+
+```typescript
+const session = await nextdemo.startRecording({
+  app,
+  fps: 30,
+  onStart: async (s) => {
+    s.hideCursor();
+    await s.frame('#stat-number', 'super-close-up', { duration: 0 });
+  },
+});
+// Frame 0 already shows super-close-up on #stat-number, cursor hidden
+```
+
+Inside `onStart`:
+- All session methods are stamped at frame 0
+- Settle delays are skipped (the callback runs fast)
+- The full session API is available: `frame()`, `zoom()`, `mask()`, `followCursor()`, `hideCursor()`, etc.
+- `startRecording()` resolves only after `onStart` completes
+
+Use `initial_zoom` for simple APP-level starting zoom. Use `onStart` when you need element-specific framing or multiple setup actions from frame 0.
 
 ## Pause / Resume
 
@@ -421,10 +445,10 @@ Style the HTML to match the video's visual identity — use the same background 
 
 | Use | When |
 |-----|------|
-| `session.frame(selector, level)` | The camera should already be in position before the next action plays (most common). The transition is backward-looking — by the time the viewer sees the action, the framing is set. |
-| `session.zoom(selector, level)` | The viewer should watch the camera travel to the target. Reserve for cinematic moments: a dramatic slow pull-back, a deliberate reveal, or a reel climax. |
+| `session.frame(selector, level)` | The transition is backward-looking — by the time the viewer sees the next action, the framing is already set. |
+| `session.zoom(selector, level)` | The transition is forward-looking — the viewer watches the camera travel to the target. |
 
-In practice, nearly all routine camera moves use `frame()`. Use `zoom()` only when the camera movement itself is part of the story — for example, `session.zoom(APP, 'wide', { duration: 7500, easing: 'ease-out' })` as a slow cinematic closing shot.
+**Tip:** pass `{ duration: 0 }` to snap the camera into the new framing instantly, without animation — e.g. `await session.frame('.hero', 'close-up', { duration: 0 })`.
 
 ### 1. Intent Drives Framing
 
@@ -550,6 +574,18 @@ await session.page.click('.option-1');
 await session.page.waitForTimeout(600);
 await session.page.click('.option-2');
 await session.stopFollowing();
+```
+
+To start a recording in follow mode from frame 0, use `onStart`:
+
+```typescript
+const session = await nextdemo.startRecording({
+  app,
+  onStart: async (s) => {
+    await s.frame('.task-list', 'medium', { duration: 0 });
+    await s.followCursor();
+  },
+});
 ```
 
 ### 8. Typing — Match the Intent
