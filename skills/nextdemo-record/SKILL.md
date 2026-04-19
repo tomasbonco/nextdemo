@@ -5,44 +5,95 @@ description: Use when the user asks to create a NextDemo recording script, demo 
 
 # NextDemo Recording Scripts
 
-Create Playwright scripts that record Electron app demos using `@nextdemo/playwright`. Scripts run via `nextdemo record <script>` which captures the window, tracks cursor, and produces a video. Supports macOS, Windows, and Linux (auto-spawns Xvfb in headless CI).
+Create Playwright scripts that record Electron app demos using the `nextdemo`
+package. Scripts *declare* videos; the CLI (`nextdemo record <script>`) loads
+them, applies any `--only`/`--skip` filters, and dispatches each video with its
+own Electron instance. Supports macOS, Windows, and Linux (auto-spawns Xvfb in
+headless CI).
 
 ## Script Structure
 
 ```typescript
-import pkg from 'nextdemo/playwright';
-const { nextdemo, APP } = pkg;
-import { _electron as electron } from 'playwright';
+import { video, defineConfig, APP } from 'nextdemo'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
-// 1. Launch the Electron app
-const app = await electron.launch({
-  executablePath: '/path/to/electron-app',  // or use args for npm-based apps
-});
-const window = await app.firstWindow();
-await window.waitForLoadState('domcontentloaded');
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const mainJs = path.join(__dirname, 'main.js')
 
-// 2. Start recording
-const session = await nextdemo.startRecording({ app, fps: 30 });
+// Optional: shared defaults merged into every video() call below.
+defineConfig({
+  app: { args: [mainJs] },
+  config: {
+    chrome: { style: 'macos', theme: 'dark' },
+    output: { width: 768, height: 500 },
+  },
+})
 
-// 3. Perform demo actions with directing
-await session.page.waitForTimeout(1500);           // establishing shot
-await session.frame('.feature-area', 'medium');    // draw attention
-await session.page.click('#button');
-await session.page.waitForTimeout(1000);           // let viewer see result
-await session.frame(APP, 'wide');                  // pull back to show context
+video('feature-demo', {
+  page: { url: 'file:///.../feature-demo.html' },  // framework navigates before capture
+  onStart: async ({ session }) => {
+    // runs at frame 0 — use for initial framing, hide cursor, etc.
+    await session.frame('#hero', 'close-up', { duration: 0 })
+  },
+}, async ({ session, page }) => {
+  // capture is live as soon as this body starts
+  await page.waitForTimeout(1000)
+  await session.frame('#button', 'close-up')
+  await page.click('#button')
+  await page.waitForTimeout(500)
+  // body-end = capture-end; no session.stop() needed
+})
 
-// 4. Stop and close
-await session.stop();
-await app.close();
+video.only('focused', { app: { args: [mainJs] } }, async ({ session, page }) => { /* ... */ })  // only this one runs
+video.skip('wip',    { app: { args: [mainJs] } }, async ({ session, page }) => { /* ... */ })  // never runs
+```
+
+Run with:
+
+```sh
+nextdemo record record.mjs                            # all videos
+nextdemo record record.mjs --only feature-demo        # one video
+nextdemo record record.mjs --only 'feat-*'            # glob
+nextdemo record record.mjs --skip wip                 # skip pattern
+nextdemo record record.mjs --only a --only b          # multiple (OR)
 ```
 
 ## API
 
+`import { video, defineConfig, APP } from 'nextdemo'`
+
 | Function | Description |
 |----------|-------------|
-| `nextdemo.startRecording({ app, fps?, name?, config?, onStart? })` | Start capture. Returns `RecordingSession`. `onStart` callback receives the session and stamps all actions at frame 0. |
+| `video(name, opts, fn)` | Register a video. `name` must match `[A-Za-z0-9_-]+`. `fn` receives `{ session, page }`. |
+| `video.only(name, opts, fn)` | Register a video and force it to be the only one run (combined with other `.only`s / CLI `--only` via OR). |
+| `video.skip(name, opts, fn)` | Register a video but skip it. Useful for temporary disabling. |
+| `defineConfig(defaults)` | Set module-scoped defaults merged into every subsequent `video(...)` call. Call at most once per file. |
+| `APP` | Sentinel for `session.frame(APP, ...)` / `session.zoom(APP, ...)` to frame the full window. |
+
+### VideoOptions
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `app` | `LaunchOptions` | Playwright Electron launch options (`args`, `executablePath`, `env`, ...). Required. |
+| `page.url` | `string?` | If set, navigates here before capture (waits for `domcontentloaded`). |
+| `page.waitFor` | `string?` | CSS selector to wait for before `onStart`. |
+| `config` | `ProjectConfig?` | Render/output config (background, chrome, zoom, output, masks). See sections below. |
+| `onStart` | `(ctx) => Promise<void>?` | Runs before frame 0; calls stamp at frame 0. Use for initial framing, hide cursor, create masks. |
+| `outDir` | `string?` | Override final MP4 output directory. |
+| `fps` | `number?` | Override capture fps for this video. Default 30. |
+
+### Callback context `{ session, page }`
+
+- `session` — **recording directives only**. No escape hatch to Playwright.
+- `page` — the **Playwright Page**, proxied for action tracking. `page.click / fill / type / hover / press / selectOption / check / uncheck` automatically emit recording events (cursor ripples, typing animation, key-combo overlays). Everything else on `page` passes through to vanilla Playwright.
+
+### Session methods
+
+| Method | Description |
+|--------|-------------|
 | `session.frame(selector, framing?, opts?)` | Frame camera on element — backward-looking: the camera is already in position before the next action plays. Framing: `'super-close-up'`, `'close-up'` (default), `'medium'`, `'wide'`. Optional `opts: { duration?: number, easing?: string }` overrides transition. |
-| `session.frame(APP, framing?, opts?)` | Frame camera on full app window. `APP` imported from `@nextdemo/playwright`. Use `session.frame(APP, 'wide')` to reset to full view. |
+| `session.frame(APP, framing?, opts?)` | Frame camera on full app window. Use `session.frame(APP, 'wide')` to reset to full view. |
 | `session.zoom(selector, framing?, opts?)` | Zoom camera to element — the transition starts now (forward-looking). The viewer watches the camera travel. Same framing levels and opts as `frame()`. |
 | `session.zoom(APP, framing?, opts?)` | Zoom camera to full app window (forward-looking). The viewer watches the camera travel. |
 | `session.pause()` | Pause recording. Frames captured while paused are skipped in the final video. |
@@ -54,7 +105,6 @@ await app.close();
 | `session.hideCursor()` | Hide the mouse cursor from the recording. |
 | `session.showCursor()` | Show the mouse cursor in the recording. |
 | `session.showKeys(keys)` | Show keyboard shortcut overlay. `keys` is `"Cmd+S"` or `["⌘", "S"]`. Auto-captured for modifier combos via `page.keyboard.press()`. |
-| `session.stop()` | Stop recording. Finalizes video file. |
 
 ### Framing Levels — Elements
 
@@ -94,37 +144,17 @@ await session.frame('.field', 'close-up', { duration: 0 });              // inst
 Control the starting zoom via config. Defaults to `'wide'` (full desktop).
 
 ```typescript
-const session = await nextdemo.startRecording({
-  app,
+video('demo', {
+  app: { args: [mainJs] },
   config: {
-    zoom: { initial_zoom: "medium" },  // start with window + some background
+    zoom: { initial_zoom: 'medium' },  // start with window + some background
   },
+}, async ({ session, page }) => {
+  // ...
 });
 ```
 
-### onStart — First-Frame Setup
-
-For element-specific initial framing, cursor visibility, masks, or follow modes that must apply from the very first rendered frame, use `onStart`. Without it, actions like `frame('.element', 'close-up')` called after `startRecording` take effect a few frames in — causing a brief wide-to-close-up pop.
-
-```typescript
-const session = await nextdemo.startRecording({
-  app,
-  fps: 30,
-  onStart: async (s) => {
-    s.hideCursor();
-    await s.frame('#stat-number', 'super-close-up', { duration: 0 });
-  },
-});
-// Frame 0 already shows super-close-up on #stat-number, cursor hidden
-```
-
-Inside `onStart`:
-- All session methods are stamped at frame 0
-- Settle delays are skipped (the callback runs fast)
-- The full session API is available: `frame()`, `zoom()`, `mask()`, `followCursor()`, `hideCursor()`, etc.
-- `startRecording()` resolves only after `onStart` completes
-
-Use `initial_zoom` for simple APP-level starting zoom. Use `onStart` when you need element-specific framing or multiple setup actions from frame 0.
+For element-specific starting framing, cursor visibility, masks, or follow modes that must apply from the very first rendered frame, use the `onStart` field of `VideoOptions` (see the API table above). All session calls inside `onStart` stamp at frame 0, so the video opens in the exact composed state you set up.
 
 ## Pause / Resume
 
@@ -133,13 +163,13 @@ Skip boring parts of a recording (loading screens, network delays) without stopp
 ```typescript
 // Perform setup that's not interesting to watch
 await session.pause();
-await session.page.click('#load-data');
-await session.page.waitForSelector('.data-table', { state: 'visible' });
+await page.click('#load-data');
+await page.waitForSelector('.data-table', { state: 'visible' });
 await session.resume();
 
 // Continue — viewer sees instant result
 await session.frame('.data-table', 'medium');
-await session.page.waitForTimeout(1000);
+await page.waitForTimeout(1000);
 ```
 
 ### Pause as Scene Setup
@@ -148,14 +178,14 @@ Use pause to compose the opening shot of a new scene. Set up zooms, masks, and c
 
 ```typescript
 await session.pause();
-await session.page.goto('https://example.com', { waitUntil: 'domcontentloaded', timeout: 30000 });
-await session.page.waitForTimeout(2000);
+await page.goto('https://example.com', { waitUntil: 'domcontentloaded', timeout: 30000 });
+await page.waitForTimeout(2000);
 
 // Compose the shot while paused — all instant
-await session.page.hover('#target-element');                         // position cursor
+await page.hover('#target-element');                                 // position cursor
 await session.frame('#target-element', 'close-up', { duration: 0 }); // frame the shot
 const mask = await session.mask('#sensitive', { color: [0,0,0,1] });
-await mask.show();                                                // mask ready
+await mask.show();                                                    // mask ready
 
 await session.resume();
 // Viewer sees: cursor on target, close-up framed, mask applied — no transition
@@ -221,7 +251,7 @@ const spotlight = await session.mask('.pricing-card', {
   feather: 4,
 });
 await spotlight.fadeIn(400);
-await session.page.waitForTimeout(2000);     // viewer focuses on the card
+await page.waitForTimeout(2000);     // viewer focuses on the card
 await spotlight.fadeOut(400);
 ```
 
@@ -245,7 +275,7 @@ const cover = await session.mask('.app-container', {
   color: [255, 255, 255, 1],
 });
 await cover.show();
-await session.page.waitForTimeout(500);
+await page.waitForTimeout(500);
 await cover.fadeOut(800);                    // content revealed
 ```
 
@@ -260,15 +290,15 @@ const spotlight = await session.mask('.step-1', {
   distance: 8,
 });
 await spotlight.fadeIn(300);
-await session.page.waitForTimeout(1500);
+await page.waitForTimeout(1500);
 
 // Move spotlight to step 2
 await spotlight.morph({ selector: '.step-2' }, 500);
-await session.page.waitForTimeout(1500);
+await page.waitForTimeout(1500);
 
 // Move to step 3
 await spotlight.morph({ selector: '.step-3' }, 500);
-await session.page.waitForTimeout(1500);
+await page.waitForTimeout(1500);
 await spotlight.fadeOut(300);
 ```
 
@@ -364,10 +394,9 @@ config: {
 ### Full Example
 
 ```typescript
-const session = await nextdemo.startRecording({
-  app,
+video('demo', {
+  app: { args: [mainJs] },
   fps: 30,
-  name: "demo",
   config: {
     background: {
       type: "gradient",
@@ -392,6 +421,8 @@ const session = await nextdemo.startRecording({
       default_transition_ms: 500,   // slightly faster transitions
     },
   },
+}, async ({ session, page }) => {
+  // ... demo actions ...
 });
 ```
 
@@ -407,12 +438,12 @@ When the user wants title cards, chapter dividers, or branded content between sc
 ```typescript
 // Show a title card between scenes
 await session.pause();
-await session.page.goto(`file://${path.join(__dirname, 'title-card.html')}`, {
+await page.goto(`file://${path.join(__dirname, 'title-card.html')}`, {
   waitUntil: 'domcontentloaded',
 });
 await session.frame(APP, 'close-up', { duration: 0 });
 await session.resume();
-await session.page.waitForTimeout(2500);  // hold the title card
+await page.waitForTimeout(2500);  // hold the title card
 ```
 
 ### Example HTML
@@ -471,20 +502,20 @@ Every zoom transition costs viewer attention. Don't zoom to every element before
 ```typescript
 // BAD — unnecessary zoom churn, viewer gets dizzy
 await session.frame('.task:nth-child(1) .checkbox', 'close-up');
-await session.page.click('.task:nth-child(1) .checkbox');
+await page.click('.task:nth-child(1) .checkbox');
 await session.frame('.task:nth-child(2) .checkbox', 'close-up');
-await session.page.click('.task:nth-child(2) .checkbox');
+await page.click('.task:nth-child(2) .checkbox');
 await session.frame('.task:nth-child(3) .checkbox', 'close-up');
-await session.page.click('.task:nth-child(3) .checkbox');
+await page.click('.task:nth-child(3) .checkbox');
 
 // GOOD — one frame to the list, click through naturally
 await session.frame('.task-list', 'medium');
-await session.page.waitForTimeout(600);
-await session.page.click('.task:nth-child(1) .checkbox');
-await session.page.waitForTimeout(400);
-await session.page.click('.task:nth-child(2) .checkbox');
-await session.page.waitForTimeout(400);
-await session.page.click('.task:nth-child(3) .checkbox');
+await page.waitForTimeout(600);
+await page.click('.task:nth-child(1) .checkbox');
+await page.waitForTimeout(400);
+await page.click('.task:nth-child(2) .checkbox');
+await page.waitForTimeout(400);
+await page.click('.task:nth-child(3) .checkbox');
 ```
 
 ### 3. Breathing Room
@@ -494,18 +525,18 @@ Add wait times so the viewer can absorb what they see. This is not a speed test.
 ```typescript
 // After framing in — let viewer orient themselves
 await session.frame('.form-group', 'close-up');
-await session.page.waitForTimeout(800);
+await page.waitForTimeout(800);
 
 // After a significant action — let viewer see the result
-await session.page.click('#submit');
-await session.page.waitForTimeout(1200);
+await page.click('#submit');
+await page.waitForTimeout(1200);
 
 // Before framing out — let the close-up linger
-await session.page.waitForTimeout(600);
+await page.waitForTimeout(600);
 await session.frame(APP, 'wide');
 
 // After framing out — let viewer see the full picture
-await session.page.waitForTimeout(1500);
+await page.waitForTimeout(1500);
 ```
 
 ### 4. Shot Progression
@@ -514,19 +545,19 @@ Follow cinematic shot structure: **establish → focus → act → reveal**.
 
 ```typescript
 // ESTABLISH: Wide shot, let viewer see the whole app
-await session.page.waitForTimeout(1500);
+await page.waitForTimeout(1500);
 
 // FOCUS: Frame to the area of interest
 await session.frame('.task-list', 'medium');
-await session.page.waitForTimeout(800);
+await page.waitForTimeout(800);
 
 // ACT: Perform the interaction
-await session.page.click('.task:nth-child(3) .checkbox');
-await session.page.waitForTimeout(800);
+await page.click('.task:nth-child(3) .checkbox');
+await page.waitForTimeout(800);
 
 // REVEAL: Pull back to show the effect (stats updated, list changed, etc.)
 await session.frame(APP, 'wide');
-await session.page.waitForTimeout(1500);
+await page.waitForTimeout(1500);
 ```
 
 Not every shot needs all four beats. If the focus is already where it needs to be, skip the zoom. If the result is visible in the current frame, don't pull back.
@@ -537,12 +568,12 @@ Before every click, hover on the target element and wait 300ms. From the viewer'
 
 ```typescript
 // GOOD — cursor arrives, element highlights, then click
-await session.page.hover('.submit-button');
-await session.page.waitForTimeout(300);
-await session.page.click('.submit-button');
+await page.hover('.submit-button');
+await page.waitForTimeout(300);
+await page.click('.submit-button');
 
 // BAD — click teleports, viewer can't track what happened
-await session.page.click('.submit-button');
+await page.click('.submit-button');
 ```
 
 Apply this to every click in standard demos. In [swift reels](#swift-reel--dynamic-showcase-directing), skip the hover for speed — reserve hover + pause for the final interaction only.
@@ -554,13 +585,13 @@ When refocusing to a new area, move the cursor simultaneously with the frame ins
 ```typescript
 // GOOD — frame and cursor move in parallel, feels natural
 await session.frame('.add-to-cart', 'medium');
-await session.page.click('.size-selector');        // cursor moves DURING frame transition
-await session.page.waitForTimeout(800);
+await page.click('.size-selector');        // cursor moves DURING frame transition
+await page.waitForTimeout(800);
 
 // BAD — sequential, feels robotic
 await session.frame('.add-to-cart', 'medium');
-await session.page.waitForTimeout(500);            // wait for frame to finish
-await session.page.click('.size-selector');        // then move cursor separately
+await page.waitForTimeout(500);            // wait for frame to finish
+await page.click('.size-selector');        // then move cursor separately
 ```
 
 ### 7. Cursor Follow for Multi-Step Sequences
@@ -570,21 +601,23 @@ When the user performs several actions in sequence (clicking through tabs, filli
 ```typescript
 await session.frame('#first-tab', 'medium', { duration: 0 });  // set zoom level
 await session.followCursor();                                    // inherit zoom, start tracking
-await session.page.click('.option-1');
-await session.page.waitForTimeout(600);
-await session.page.click('.option-2');
+await page.click('.option-1');
+await page.waitForTimeout(600);
+await page.click('.option-2');
 await session.stopFollowing();
 ```
 
 To start a recording in follow mode from frame 0, use `onStart`:
 
 ```typescript
-const session = await nextdemo.startRecording({
-  app,
-  onStart: async (s) => {
-    await s.frame('.task-list', 'medium', { duration: 0 });
-    await s.followCursor();
+video('demo', {
+  app: { args: [mainJs] },
+  onStart: async ({ session }) => {
+    await session.frame('.task-list', 'medium', { duration: 0 });
+    await session.followCursor();
   },
+}, async ({ session, page }) => {
+  // capture opens already tracking the cursor on .task-list
 });
 ```
 
@@ -595,16 +628,16 @@ Typing isn't always a close-up moment. Zoom level depends on what the shot is ab
 ```typescript
 // Intent: SHOWCASE the typing (e.g., naming a project, entering a key value)
 await session.frame('#project-name', 'super-close-up');
-await session.page.waitForTimeout(400);
-await session.page.click('#project-name');
-await session.page.type('#project-name', 'Ship v2.0 release', { delay: 80 });
-await session.page.waitForTimeout(600);
+await page.waitForTimeout(400);
+await page.click('#project-name');
+await page.type('#project-name', 'Ship v2.0 release', { delay: 80 });
+await page.waitForTimeout(600);
 
 // Intent: FILL a form (typing is necessary, not the focus)
 // Stay at current zoom, type quickly, move on
-await session.page.fill('#email', 'user@example.com');
-await session.page.fill('#company', 'Acme Corp');
-await session.page.waitForTimeout(400);
+await page.fill('#email', 'user@example.com');
+await page.fill('#company', 'Acme Corp');
+await page.waitForTimeout(400);
 ```
 
 ### 9. Select/Dropdown Interactions Need Space
@@ -613,11 +646,11 @@ Dropdowns open overlays that need time to render and be seen.
 
 ```typescript
 await session.frame('.form-group-with-select', 'close-up');
-await session.page.waitForTimeout(500);
-await session.page.click('#category-select');
-await session.page.waitForTimeout(400);           // let dropdown open
-await session.page.selectOption('#category-select', 'urgent');
-await session.page.waitForTimeout(600);           // let viewer see selection
+await page.waitForTimeout(500);
+await page.click('#category-select');
+await page.waitForTimeout(400);           // let dropdown open
+await page.selectOption('#category-select', 'urgent');
+await page.waitForTimeout(600);           // let viewer see selection
 ```
 
 ### 10. Use Pause to Skip the Boring Parts
@@ -626,15 +659,15 @@ Don't make the viewer watch loading screens or repetitive setup. Pause, do the b
 
 ```typescript
 // BAD — viewer watches a 3-second loading spinner
-await session.page.click('#load-dashboard');
-await session.page.waitForSelector('.dashboard', { state: 'visible' });
+await page.click('#load-dashboard');
+await page.waitForSelector('.dashboard', { state: 'visible' });
 
 // GOOD — skip the wait, viewer sees instant result
-await session.page.click('#load-dashboard');
+await page.click('#load-dashboard');
 await session.pause();
-await session.page.waitForSelector('.dashboard', { state: 'visible' });
+await page.waitForSelector('.dashboard', { state: 'visible' });
 await session.resume();
-await session.page.waitForTimeout(800);           // let viewer absorb the result
+await page.waitForTimeout(800);           // let viewer absorb the result
 ```
 
 ### 11. Spotlights Direct Attention
@@ -650,24 +683,24 @@ const spotlight = await session.mask('.key-feature', {
   feather: 4,
 });
 await spotlight.fadeIn(300);
-await session.page.waitForTimeout(1200);          // viewer reads the spotlit area
+await page.waitForTimeout(1200);          // viewer reads the spotlit area
 await spotlight.fadeOut(200);
-await session.page.waitForTimeout(200);
-await session.page.click('.key-feature button');
+await page.waitForTimeout(200);
+await page.click('.key-feature button');
 ```
 
 ## Key Playwright Actions for Demos
 
 | Action | Usage | Notes |
 |--------|-------|-------|
-| `session.page.click(selector)` | Click element | Generates cursor movement + click effect |
-| `session.page.fill(selector, text)` | Type into input | Clear + type (instant) |
-| `session.page.type(selector, text, { delay })` | Type character by character | More cinematic with `delay: 60-100` |
-| `session.page.hover(selector)` | Move cursor to element | Good before click for smooth cursor |
-| `session.page.waitForTimeout(ms)` | Pause | Essential for pacing |
-| `session.page.selectOption(sel, val)` | Select dropdown | Pair with waits before/after |
-| `session.page.keyboard.press('Enter')` | Key press | Submit forms |
-| `session.page.evaluate(fn)` | Run JS in app | Set up state before recording |
+| `page.click(selector)` | Click element | Generates cursor movement + click effect |
+| `page.fill(selector, text)` | Type into input | Clear + type (instant) |
+| `page.type(selector, text, { delay })` | Type character by character | More cinematic with `delay: 60-100` |
+| `page.hover(selector)` | Move cursor to element | Good before click for smooth cursor |
+| `page.waitForTimeout(ms)` | Pause | Essential for pacing |
+| `page.selectOption(sel, val)` | Select dropdown | Pair with waits before/after |
+| `page.keyboard.press('Enter')` | Key press | Submit forms |
+| `page.evaluate(fn)` | Run JS in app | Set up state before recording |
 
 ## Pacing Reference
 
@@ -692,11 +725,11 @@ Cookie banners, consent modals, and promo popups block interactions. Remove them
 
 ```typescript
 await session.pause();
-await session.page.goto('https://www.nike.com/...', { waitUntil: 'domcontentloaded', timeout: 30000 });
-await session.page.waitForTimeout(5000);
+await page.goto('https://www.nike.com/...', { waitUntil: 'domcontentloaded', timeout: 30000 });
+await page.waitForTimeout(5000);
 
 // Nuke overlay roots — more reliable than clicking accept buttons
-await session.page.evaluate(() => {
+await page.evaluate(() => {
   document.querySelector('#modal-root')?.remove();
   const accept = [...document.querySelectorAll('button')].find(b => /accept/i.test(b.textContent));
   if (accept) accept.click();
@@ -704,7 +737,7 @@ await session.page.evaluate(() => {
 
 // Re-check after resume — some sites re-inject modals
 await session.resume();
-await session.page.evaluate(() => document.querySelector('#modal-root')?.remove());
+await page.evaluate(() => document.querySelector('#modal-root')?.remove());
 ```
 
 ### Compound Selectors
@@ -755,9 +788,9 @@ Show quick content changes first (pages flashing), then the dramatic slow reveal
 ```typescript
 // Quick page flashes
 await session.pause();
-await session.page.goto('https://github.com', ...);
+await page.goto('https://github.com', { waitUntil: 'domcontentloaded' });
 await session.resume();
-await session.page.waitForTimeout(1500);           // just a flash
+await page.waitForTimeout(1500);           // just a flash
 
 // ... more pages ...
 
@@ -771,12 +804,11 @@ In a fast reel, exactly ONE cinematic moment (5000–7500ms) makes the speed els
 
 ### End on the Action
 
-No closing zoom-outs, no fadeOuts, no wind-down. `session.stop()` right after the final click.
+No closing zoom-outs, no fadeOuts, no wind-down. End the video body immediately after the final click — capture stops when the body resolves.
 
 ```typescript
-await session.page.click('#cta-button');
-await session.stop();                              // end at peak impact
-await app.close();
+await page.click('#cta-button');
+// body ends here — capture stops at peak impact
 ```
 
 ### Hover Only for the Final Payoff
@@ -785,12 +817,12 @@ Unlike standard demos where you [hover before every click](#5-hover-before-click
 
 ```typescript
 // Throughout the reel: just click (no hover)
-await session.page.click('#some-button');
+await page.click('#some-button');
 
 // Final scene: hover + anticipation + click
-await session.page.hover('#final-cta');
-await session.page.waitForTimeout(400);
-await session.page.click('#final-cta');
+await page.hover('#final-cta');
+await page.waitForTimeout(400);
+await page.click('#final-cta');
 ```
 
 ### Montage Pages Don't Need Full Loads
@@ -799,97 +831,90 @@ For visual flashes in a montage, skip the load wait. Resume immediately — part
 
 ## Parallel Recording
 
-Record multiple Electron windows simultaneously to cut CI/CD wall-clock time. Each window gets its own capture session; all render in parallel after captures complete.
+Declare multiple `video(...)` entries in a single script and the CLI records and renders them in parallel — each video gets its own Electron instance. You don't manage concurrency manually; just declare the videos.
 
-### Pattern: Multiple Electron Instances
-
-Launch separate `electron.launch()` calls, start all recordings with `Promise.all`, run scenarios in parallel:
+### Pattern: Multiple Videos in One Script
 
 ```typescript
-// Launch 3 separate Electron apps
-const [app1, app2, app3] = await Promise.all([
-  electron.launch({ args: [mainJs] }),
-  electron.launch({ args: [mainJs] }),
-  electron.launch({ args: [mainJs] }),
-]);
+import { video, defineConfig, APP } from 'nextdemo'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
-// Navigate each to a different view BEFORE recording
-const win2 = await app2.firstWindow();
-await win2.click('[data-view="settings"]');
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const mainJs = path.join(__dirname, 'main.js')
 
-// Start all recordings at once
-const [s1, s2, s3] = await Promise.all([
-  nextdemo.startRecording({ app: app1, fps: 30, name: "overview" }),
-  nextdemo.startRecording({ app: app2, fps: 30, name: "settings" }),
-  nextdemo.startRecording({ app: app3, fps: 30, name: "deploy" }),
-]);
+defineConfig({
+  app: { args: [mainJs] },
+})
 
-// Run all scenarios in parallel
-await Promise.all([
-  (async () => {
-    await s1.page.waitForTimeout(1500);
-    await s1.frame('.stats', 'medium');
-    await s1.page.click('#refresh-btn');
-    await s1.frame(APP, 'wide');
-    await s1.page.waitForTimeout(1500);
-    await s1.stop();
-  })(),
-  (async () => {
-    await s2.page.waitForTimeout(1500);
-    await s2.frame('#toggle-dark', 'close-up');
-    await s2.page.click('#toggle-dark');
-    await s2.frame(APP, 'wide');
-    await s2.page.waitForTimeout(1500);
-    await s2.stop();
-  })(),
-  (async () => {
-    await s3.page.waitForTimeout(1500);
-    await s3.page.click('#deploy-btn');
-    await s3.frame('.table-section', 'medium');
-    await s3.page.waitForTimeout(1500);
-    await s3.stop();
-  })(),
-]);
+video('overview', {}, async ({ session, page }) => {
+  await page.waitForTimeout(1500);
+  await session.frame('.stats', 'medium');
+  await page.click('#refresh-btn');
+  await session.frame(APP, 'wide');
+  await page.waitForTimeout(1500);
+});
 
-// Close all apps
-await Promise.all([app1.close(), app2.close(), app3.close()]);
+video('settings', {
+  page: { waitFor: '[data-view="settings"]' },
+}, async ({ session, page }) => {
+  await page.click('[data-view="settings"]');
+  await page.waitForTimeout(500);
+  await session.frame('#toggle-dark', 'close-up');
+  await page.click('#toggle-dark');
+  await session.frame(APP, 'wide');
+  await page.waitForTimeout(1500);
+});
+
+video('deploy', {}, async ({ session, page }) => {
+  await page.waitForTimeout(1500);
+  await page.click('#deploy-btn');
+  await session.frame('.table-section', 'medium');
+  await page.waitForTimeout(1500);
+});
 ```
 
-### Key Rules
-
-- **One `electron.launch()` per window** — each window needs its own Electron process (separate PID for capture)
-- **`name` is required** for each recording — it becomes the output filename
-- **Set up views before recording** — navigate each window to its starting state before `startRecording()`
-- **`Promise.all` for starts and scenarios** — recordings and actions run concurrently
-- **Each scenario is a self-contained async IIFE** — independent zoom/action/stop lifecycle
-
-### CLI
+Run as usual:
 
 ```bash
-# Record with default concurrency (= CPU cores)
+# Record all videos (default concurrency = CPU cores)
 nextdemo record path/to/script.mjs
 
 # Limit concurrency (useful in memory-constrained CI)
 nextdemo record path/to/script.mjs --concurrency 2
+
+# Only one of them
+nextdemo record path/to/script.mjs --only deploy
 ```
 
-### When to Use Parallel vs Sequential
+### Key Rules
+
+- **Each `video(...)` is independent** — its own Electron instance, its own output file
+- **The `name` passed to `video()` becomes the output filename** — make it filesystem-safe (`[A-Za-z0-9_-]+`)
+- **Set up per-video state via `page.url` / `page.waitFor` / `onStart`** — no need to open extra Playwright windows
+- **Use `defineConfig(...)` at the top of the file** to avoid repeating shared `app` / `config` across every video
+
+### When Separate Videos vs One Long Video
 
 | Scenario | Approach |
 |----------|----------|
-| Multiple independent features to demo | **Parallel** — separate Electron instances |
-| Multi-step flow through one app (e.g. wizard) | **Sequential** — one app, sequential `startRecording`/`stop` pairs |
-| Same feature, different configs/themes | **Parallel** — separate instances with different settings |
-| Long single recording | **Sequential** — one session |
+| Multiple independent features to demo | **Separate `video(...)` entries** — they run in parallel |
+| Multi-step flow through one app (e.g. wizard) | **One `video(...)`** — sequential scenes in a single body |
+| Same feature, different configs/themes | **Separate `video(...)` entries** with different `config` |
+| Long single recording | **One `video(...)`** |
 
 ## Running
 
 ```bash
-# Record (captures + renders all sessions, parallel by default)
+# Record (captures + renders all videos, parallel by default)
 nextdemo record path/to/script.mjs
 
 # Record with limited concurrency
 nextdemo record path/to/script.mjs --concurrency 2
+
+# Filter which videos run
+nextdemo record path/to/script.mjs --only intro --only outro
+nextdemo record path/to/script.mjs --skip wip
 
 # Activate a license
 nextdemo activate <license-key>
@@ -897,11 +922,11 @@ nextdemo activate <license-key>
 
 ## Project Setup
 
-The script needs `nextdemo` (which exports `nextdemo/playwright`) and `playwright` installed:
+The script needs `nextdemo` (which provides `video`, `defineConfig`, and `APP`) and `playwright` installed:
 
 ```bash
 npm install playwright
-npm install /path/to/nextdemo/app
+npm install nextdemo
 ```
 
 ## Before Writing a Script
@@ -909,7 +934,7 @@ npm install /path/to/nextdemo/app
 1. Read the user's app code to understand the UI (selectors, routes, features)
 2. Ask what flow they want to demo if not specified
 3. Plan your shot list: what does the viewer need to see, in what order?
-4. **Consider parallelism**: if demoing multiple independent features, use separate Electron instances to record in parallel
+4. **Consider splitting into multiple `video(...)` entries**: if demoing multiple independent features, declare each as its own `video(...)` so they record in parallel
 5. Use realistic data in fills/inputs
 6. Think like a director: establish → focus → act → reveal
 7. Add comments explaining each section of the demo
