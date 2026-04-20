@@ -49,6 +49,28 @@ video.only('focused', { app: { args: [mainJs] } }, async ({ session, page }) => 
 video.skip('wip',    { app: { args: [mainJs] } }, async ({ session, page }) => { /* ... */ })  // never runs
 ```
 
+### Recording a URL without your own Electron app
+
+If you just want to capture a web page or a local HTML file, omit `app.args` and set `page.url`.
+NextDemo launches a minimal default Electron main (a blank `BrowserWindow`) and navigates it to
+your URL — no `main.js` required.
+
+```typescript
+import { video } from 'nextdemo'
+
+video('landing-tour', {
+  page: { url: 'https://example.com' },
+  config: { window: { width: 1280, height: 800 } },  // Electron window size
+}, async ({ session, page }) => {
+  await page.waitForTimeout(1000)
+  await session.frame('main', 'medium')
+  await page.click('nav a:first-child')
+  await page.waitForTimeout(1500)
+})
+```
+
+You need at least one of `app.args` or `page.url`. Supplying neither is an error.
+
 Run with:
 
 ```sh
@@ -75,13 +97,18 @@ nextdemo record record.mjs --only a --only b          # multiple (OR)
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `app` | `LaunchOptions` | Playwright Electron launch options (`args`, `executablePath`, `env`, ...). Required. |
-| `page.url` | `string?` | If set, navigates here before capture (waits for `domcontentloaded`). |
+| `app` | `LaunchOptions?` | Playwright Electron launch options (`args`, `executablePath`, `env`, ...). If `args` is omitted, NextDemo launches a bundled default Electron main (a blank `BrowserWindow`) and you must supply `page.url`. |
+| `page.url` | `string?` | If set, navigates here before capture (waits for `domcontentloaded`). Required when `app.args` is omitted. |
 | `page.waitFor` | `string?` | CSS selector to wait for before `onStart`. |
-| `config` | `ProjectConfig?` | Render/output config (background, chrome, zoom, output, masks). See sections below. |
+| `config` | `ProjectConfig?` | Render/output config (background, chrome, zoom, output, masks, window size). See sections below. |
 | `onStart` | `(ctx) => Promise<void>?` | Runs before frame 0; calls stamp at frame 0. Use for initial framing, hide cursor, create masks. |
 | `outDir` | `string?` | Override final MP4 output directory. |
 | `fps` | `number?` | Override capture fps for this video. Default 30. |
+
+**Two ways to get content on screen:**
+
+- **Point at a URL** — omit `app.args`, set `page.url`. Works for web pages, local HTML files, or anything reachable by URL. Shortest path for simple demos.
+- **Launch your own Electron app** — set `app.args: [mainJs]`. NextDemo runs your Electron main process and attaches to its first window. Use this when your recording needs a custom Electron build.
 
 ### Callback context `{ session, page }`
 
