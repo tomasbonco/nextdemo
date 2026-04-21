@@ -98,6 +98,8 @@ nextdemo record record.mjs --only a --only b          # multiple (OR)
 | Field | Type | Notes |
 |-------|------|-------|
 | `app` | `LaunchOptions?` | Playwright Electron launch options (`args`, `executablePath`, `env`, ...). If `args` is omitted, NextDemo launches a bundled default Electron main (a blank `BrowserWindow`) and you must supply `page.url`. |
+| `app.persistSession` | `boolean?` | Default `false`. Only applies when `args` is omitted. When `false`, each run gets a fresh in-memory Electron partition so cookies, localStorage, IndexedDB, and cache do not leak between recordings. Set `true` if you need state to survive across runs. |
+| `app.cookies.rewriteSameSite` | `boolean?` | Default `true`. Only applies when `args` is omitted. Rewrites response `Set-Cookie` headers to `SameSite=None; Secure` so third-party cookies work when the window starts at `about:blank` and then navigates to a real origin. Set `false` only if you are specifically testing SameSite enforcement. |
 | `page.url` | `string?` | If set, navigates here before capture (waits for `domcontentloaded`). Required when `app.args` is omitted. |
 | `page.waitFor` | `string?` | CSS selector to wait for before `onStart`. |
 | `config` | `ProjectConfig?` | Render/output config (background, chrome, zoom, output, masks, window size). See sections below. |
@@ -107,8 +109,8 @@ nextdemo record record.mjs --only a --only b          # multiple (OR)
 
 **Two ways to get content on screen:**
 
-- **Point at a URL** — omit `app.args`, set `page.url`. Works for web pages, local HTML files, or anything reachable by URL. Shortest path for simple demos.
-- **Launch your own Electron app** — set `app.args: [mainJs]`. NextDemo runs your Electron main process and attaches to its first window. Use this when your recording needs a custom Electron build.
+- **Point at a URL** — omit `app.args`, set `page.url`. Works for web pages, local HTML files, or anything reachable by URL. Shortest path for simple demos. The default main runs each recording in an ephemeral in-memory session and rewrites response `Set-Cookie` headers to `SameSite=None; Secure` so real sites (consent banners, logins, CSRF flows) behave correctly — see `app.persistSession` and `app.cookies.rewriteSameSite` to opt out.
+- **Launch your own Electron app** — set `app.args: [mainJs]`. NextDemo runs your Electron main process and attaches to its first window. Use this when your recording needs a custom Electron build. **Your main is your responsibility** — the ephemeral session and SameSite rewrite defaults above do **not** apply; replicate them in your own `main.js` if you navigate to third-party sites.
 
 ### Callback context `{ session, page }`
 
@@ -781,12 +783,41 @@ External sites reuse class names. Combine multiple classes or use data-testid at
 
 ### Electron Setup for External Sites
 
-Allow third-party cookies and disable web security so external sites work correctly:
+**Using the default main (`app.args` omitted) — nothing to configure.** NextDemo opens each recording in an ephemeral in-memory session and rewrites response `Set-Cookie` headers to `SameSite=None; Secure`, so real sites behave correctly out of the box:
+
+- **Ephemeral session** — cart state, localStorage, auth cookies from a previous run do not leak into this one. Without this, running a "click Add-to-Cart" recording twice fails because the site swaps the button for a quantity stepper. Set `app.persistSession: true` to keep state across runs.
+- **SameSite rewrite** — the window starts at `about:blank`, so every navigation to a real origin looks cross-site. Without the rewrite, Lax/Strict cookies get dropped and consent banners, login redirects, and CSRF flows break silently. Set `app.cookies.rewriteSameSite: false` only when you are specifically testing SameSite enforcement.
+
+**Using a custom main (`app.args: [mainJs]`) — you are on your own.** These defaults apply only to the bundled default main. If your custom main navigates to third-party sites, replicate both behaviors in your `main.js`:
 
 ```javascript
-const win = new BrowserWindow({
-  webPreferences: { webSecurity: false },
-});
+const { app, BrowserWindow, session } = require('electron');
+
+function createWindow() {
+  // Fresh in-memory partition per run — no "persist:" prefix.
+  const partition = 'ephemeral-' + process.pid + '-' + Date.now();
+  const ses = session.fromPartition(partition);
+
+  // Rewrite Set-Cookie headers to SameSite=None; Secure.
+  ses.webRequest.onHeadersReceived((details, callback) => {
+    const headers = { ...details.responseHeaders };
+    const setCookie = headers['set-cookie'] || headers['Set-Cookie'];
+    if (setCookie) {
+      delete headers['set-cookie'];
+      delete headers['Set-Cookie'];
+      headers['Set-Cookie'] = setCookie.map(c =>
+        c.replace(/;\s*SameSite=\w+/gi, '; SameSite=None')
+          .replace(/;\s*Secure/gi, '') + '; Secure'
+      );
+    }
+    callback({ responseHeaders: headers });
+  });
+
+  const win = new BrowserWindow({
+    webPreferences: { partition /* , webSecurity: false if needed */ },
+  });
+  // ...
+}
 ```
 
 ## Swift Reel / Dynamic Showcase Directing
