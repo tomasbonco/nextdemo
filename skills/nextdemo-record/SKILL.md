@@ -49,29 +49,7 @@ video.only('focused', { app: { args: [mainJs] } }, async ({ session, page }) => 
 video.skip('wip',    { app: { args: [mainJs] } }, async ({ session, page }) => { /* ... */ })  // never runs
 ```
 
-### Recording a URL without your own Electron app
-
-If you just want to capture a web page or a local HTML file, omit `app.args` and set `page.url`.
-NextDemo launches a minimal default Electron main (a blank `BrowserWindow`) and navigates it to
-your URL — no `main.js` required.
-
-```typescript
-import { video } from 'nextdemo'
-
-video('landing-tour', {
-  page: { url: 'https://example.com' },
-  config: { window: { width: 1280, height: 800 } },  // Electron window size
-}, async ({ session, page }) => {
-  await page.waitForTimeout(1000)
-  await session.frame('main', 'medium')
-  await page.click('nav a:first-child')
-  await page.waitForTimeout(1500)
-})
-```
-
-You need at least one of `app.args` or `page.url`. Supplying neither is an error.
-
-Run with:
+**Capture a URL without your own Electron app:** omit `app.args` and set `page.url`. NextDemo launches a bundled default Electron main (blank `BrowserWindow`) and navigates it. You need at least one of `app.args` or `page.url` — supplying neither is an error.
 
 ```sh
 nextdemo record record.mjs                            # all videos
@@ -88,8 +66,8 @@ nextdemo record record.mjs --only a --only b          # multiple (OR)
 | Function | Description |
 |----------|-------------|
 | `video(name, opts, fn)` | Register a video. `name` must match `[A-Za-z0-9_-]+`. `fn` receives `{ session, page }`. |
-| `video.only(name, opts, fn)` | Register a video and force it to be the only one run (combined with other `.only`s / CLI `--only` via OR). |
-| `video.skip(name, opts, fn)` | Register a video but skip it. Useful for temporary disabling. |
+| `video.only(name, opts, fn)` | Register and force to be the only one run (combined with other `.only`s / CLI `--only` via OR). |
+| `video.skip(name, opts, fn)` | Register but skip. Useful for temporary disabling. |
 | `defineConfig(defaults)` | Set module-scoped defaults merged into every subsequent `video(...)` call. Call at most once per file. |
 | `APP` | Sentinel for `session.frame(APP, ...)` / `session.zoom(APP, ...)` to frame the full window. |
 
@@ -97,7 +75,7 @@ nextdemo record record.mjs --only a --only b          # multiple (OR)
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `app` | `LaunchOptions?` | Playwright Electron launch options (`args`, `executablePath`, `env`, ...). If `args` is omitted, NextDemo launches a bundled default Electron main (a blank `BrowserWindow`) and you must supply `page.url`. |
+| `app` | `LaunchOptions?` | Playwright Electron launch options (`args`, `executablePath`, `env`, ...). If `args` is omitted, NextDemo launches a bundled default Electron main (blank `BrowserWindow`) and you must supply `page.url`. |
 | `app.persistSession` | `boolean?` | Default `false`. Only applies when `args` is omitted. When `false`, each run gets a fresh in-memory Electron partition so cookies, localStorage, IndexedDB, and cache do not leak between recordings. Set `true` if you need state to survive across runs. |
 | `app.cookies.rewriteSameSite` | `boolean?` | Default `true`. Only applies when `args` is omitted. Rewrites response `Set-Cookie` headers to `SameSite=None; Secure` so third-party cookies work when the window starts at `about:blank` and then navigates to a real origin. Set `false` only if you are specifically testing SameSite enforcement. |
 | `page.url` | `string?` | If set, navigates here before capture (waits for `domcontentloaded`). Required when `app.args` is omitted. |
@@ -106,11 +84,6 @@ nextdemo record record.mjs --only a --only b          # multiple (OR)
 | `onStart` | `(ctx) => Promise<void>?` | Runs before frame 0; calls stamp at frame 0. Use for initial framing, hide cursor, create masks. |
 | `outDir` | `string?` | Override final MP4 output directory. |
 | `fps` | `number?` | Override capture fps for this video. Default 30. |
-
-**Two ways to get content on screen:**
-
-- **Point at a URL** — omit `app.args`, set `page.url`. Works for web pages, local HTML files, or anything reachable by URL. Shortest path for simple demos. The default main runs each recording in an ephemeral in-memory session and rewrites response `Set-Cookie` headers to `SameSite=None; Secure` so real sites (consent banners, logins, CSRF flows) behave correctly — see `app.persistSession` and `app.cookies.rewriteSameSite` to opt out.
-- **Launch your own Electron app** — set `app.args: [mainJs]`. NextDemo runs your Electron main process and attaches to its first window. Use this when your recording needs a custom Electron build. **Your main is your responsibility** — the ephemeral session and SameSite rewrite defaults above do **not** apply; replicate them in your own `main.js` if you navigate to third-party sites.
 
 ### Callback context `{ session, page }`
 
@@ -135,27 +108,16 @@ nextdemo record record.mjs --only a --only b          # multiple (OR)
 | `session.showCursor()` | Show the mouse cursor in the recording. |
 | `session.showKeys(keys)` | Show keyboard shortcut overlay. `keys` is `"Cmd+S"` or `["⌘", "S"]`. Auto-captured for modifier combos via `page.keyboard.press()`. |
 
-### Framing Levels — Elements
+### Framing Levels
 
-When zooming to a CSS selector, the element must fit in frame. Padding is added around it.
+When zooming to a CSS selector, the element must fit in frame with padding around it. When zooming to `APP`, framing controls how much of the desktop is visible.
 
-| Level | Effect | When to use |
-|-------|--------|-------------|
-| `'super-close-up'` | Crops slightly into the element | Typing, dramatic detail, single field focus |
-| `'close-up'` | Minimal padding around element | Default. Buttons, small components |
-| `'medium'` | Generous padding, shows context | Checkboxes (show labels), form groups, cards |
-| `'wide'` | Lots of surrounding UI visible | Establishing shots, showing effect of an action |
-
-### Framing Levels — APP
-
-When zooming to `APP`, framing controls how much of the desktop is visible.
-
-| Level | Effect | When to use |
-|-------|--------|-------------|
-| `'wide'` | Full desktop — window at actual size, lots of background | Establishing/closing shots |
-| `'medium'` | Window with some background visible | Default starting shot |
-| `'close-up'` | Window fills the frame | Focus on the app |
-| `'super-close-up'` | Slight crop into the window | Tight focus on content |
+| Level | Element | APP |
+|-------|---------|-----|
+| `'super-close-up'` | Crops slightly into the element. Typing, dramatic detail, single field focus | Slight crop into the window. Tight focus on content |
+| `'close-up'` | Minimal padding around element (default for elements). Buttons, small components | Window fills the frame. Focus on the app |
+| `'medium'` | Generous padding, shows context. Checkboxes (show labels), form groups, cards | Window with some background (default starting shot) |
+| `'wide'` | Lots of surrounding UI visible. Establishing shots, showing effect of an action | Full desktop, window at actual size, lots of background. Establishing/closing shots |
 
 ### Per-Frame/Zoom Duration Override
 
@@ -178,9 +140,7 @@ video('demo', {
   config: {
     zoom: { initial_zoom: 'medium' },  // start with window + some background
   },
-}, async ({ session, page }) => {
-  // ...
-});
+}, async ({ session, page }) => { /* ... */ });
 ```
 
 For element-specific starting framing, cursor visibility, masks, or follow modes that must apply from the very first rendered frame, use the `onStart` field of `VideoOptions` (see the API table above). All session calls inside `onStart` stamp at frame 0, so the video opens in the exact composed state you set up.
@@ -190,7 +150,6 @@ For element-specific starting framing, cursor visibility, masks, or follow modes
 Skip boring parts of a recording (loading screens, network delays) without stopping capture. Frames between `pause()` and `resume()` are dropped from the final video, and the gap is seamlessly bridged with smooth cursor and zoom interpolation.
 
 ```typescript
-// Perform setup that's not interesting to watch
 await session.pause();
 await page.click('#load-data');
 await page.waitForSelector('.data-table', { state: 'visible' });
@@ -222,21 +181,9 @@ await session.resume();
 
 **Every `frame()` call during pause must use `duration: 0`.** There's no point animating what won't be seen.
 
-### When to Use Pause/Resume
-
-| Scenario | Approach |
-|----------|----------|
-| Waiting for network/loading spinners | Pause before, resume after load |
-| Setting up app state (navigation, config) | Pause during boring setup |
-| Composing the opening shot of a scene | Pause, set zoom/mask/cursor, resume |
-| Skipping repetitive steps | Pause, do the steps, resume |
-| Everything the viewer should see | Don't pause — let it record |
-
 ## Masks
 
 Create overlay layers on elements for spotlight effects, blur/redaction, and cover/reveal animations. Each mask is tied to a CSS selector and composited between the content and cursor layers (so masks scale naturally with zoom).
-
-### Creating Masks
 
 ```typescript
 const mask = await session.mask(selector, opts?)
@@ -254,9 +201,9 @@ const mask = await session.mask(selector, opts?)
 | `borderRadius` | `number` | inherited | Override corner radius in output px. Use `0` for sharp rectangular mask |
 | `z` | `number` | `0` | Layer order for compositing (higher = on top) |
 
-**Pixel units:** `distance`, `feather`, and `borderRadius` are in **output video pixels** — the values you specify are what you see at the final output resolution, regardless of whether you use a higher internal render resolution (virtual display). A `feather: 5` produces a ~5px soft edge in the output; you don't need to pre-scale it for the virtual display.
+**Pixel units:** `distance`, `feather`, and `borderRadius` are in **output video pixels** — what you specify is what you see at the final output resolution, regardless of internal render resolution.
 
-### MaskHandle Methods
+**MaskHandle methods:**
 
 | Method | Description |
 |--------|-------------|
@@ -268,7 +215,7 @@ const mask = await session.mask(selector, opts?)
 
 **MorphProps** (all optional): `selector`, `color`, `blur`, `distance`, `feather`, `z`.
 
-### Spotlight / Focus Effect
+### Spotlight (inverted mask)
 
 Dark overlay with the target element cut out to draw attention:
 
@@ -284,52 +231,11 @@ await page.waitForTimeout(2000);     // viewer focuses on the card
 await spotlight.fadeOut(400);
 ```
 
-### Blur / Redaction
+### Other patterns
 
-Blur sensitive content like passwords or personal information:
-
-```typescript
-const redaction = await session.mask('.password-input', { blur: 0.5 });
-await redaction.show();
-// ... continue demo with blurred field ...
-await redaction.hide();
-```
-
-### Cover / Reveal
-
-Overlay that fades away to reveal content dramatically:
-
-```typescript
-const cover = await session.mask('.app-container', {
-  color: [255, 255, 255, 1],
-});
-await cover.show();
-await page.waitForTimeout(500);
-await cover.fadeOut(800);                    // content revealed
-```
-
-### Morphing Between Targets
-
-Animate a mask from one element to another (e.g., a moving spotlight):
-
-```typescript
-const spotlight = await session.mask('.step-1', {
-  color: [0, 0, 0, 0.6],
-  inverted: true,
-  distance: 8,
-});
-await spotlight.fadeIn(300);
-await page.waitForTimeout(1500);
-
-// Move spotlight to step 2
-await spotlight.morph({ selector: '.step-2' }, 500);
-await page.waitForTimeout(1500);
-
-// Move to step 3
-await spotlight.morph({ selector: '.step-3' }, 500);
-await page.waitForTimeout(1500);
-await spotlight.fadeOut(300);
-```
+- **Blur / redaction:** `await session.mask('.password-input', { blur: 0.5 })` → `.show()` … `.hide()`.
+- **Cover / reveal:** solid opaque mask (`color: [255,255,255,1]`) → `.show()`, wait, `.fadeOut(800)` reveals content dramatically.
+- **Morphing spotlight:** reuse one mask across steps — `await spotlight.morph({ selector: '.step-2' }, 500)` then `.morph({ selector: '.step-3' }, 500)` to walk attention through a sequence.
 
 ## Visual Customization
 
@@ -368,11 +274,11 @@ config: {
 }
 ```
 
-When `image` is set, the PNG replaces the entire title bar — background, traffic lights, everything. The image is stretched to fit the rendered title bar dimensions. Use this for fully custom window chrome.
+When `image` is set, the PNG replaces the entire title bar — background, traffic lights, everything. The image is stretched to fit the rendered title bar dimensions.
 
 ### Cursors
 
-The default cursors are pixel-art style (Minecraft-like blocky design). You can override them with custom PNG images per cursor type.
+Default cursors are pixel-art style (Minecraft-like blocky design). Override with custom PNGs per cursor type.
 
 ```typescript
 config: {
@@ -396,7 +302,7 @@ Custom cursor PNGs should have transparency (RGBA). The hotspot is at the top-le
 
 ### Keyboard Overlay
 
-Keyboard shortcuts are rendered as an overlay when modifier combos are pressed. Auto-captured from `page.keyboard.press()` for combos with modifiers (Cmd, Ctrl, Alt, Shift). Use `session.showKeys()` to trigger manually.
+Keyboard shortcuts render as an overlay when modifier combos are pressed. Auto-captured from `page.keyboard.press()` for combos with modifiers (Cmd, Ctrl, Alt, Shift). Use `session.showKeys()` to trigger manually.
 
 ```typescript
 config: {
@@ -420,52 +326,11 @@ config: {
 }
 ```
 
-### Full Example
-
-```typescript
-video('demo', {
-  app: { args: [mainJs] },
-  fps: 30,
-  config: {
-    background: {
-      type: "gradient",
-      gradient: {
-        type: "radial", angle: 0,
-        stops: [
-          { color: "#1a1a2e", position: 0.0 },
-          { color: "#0f0f23", position: 1.0 },
-        ],
-      },
-    },
-    chrome: {
-      corner_radius: 12,
-      image: path.join(__dirname, "header.png"),
-    },
-    cursor: {
-      scale: 1.5,
-      arrow_image: path.join(__dirname, "cursor-arrow.png"),
-      ibeam_image: path.join(__dirname, "cursor-ibeam.png"),
-    },
-    zoom: {
-      default_transition_ms: 500,   // slightly faster transitions
-    },
-  },
-}, async ({ session, page }) => {
-  // ... demo actions ...
-});
-```
-
 ## Custom Interstitial Screens
 
-When the user wants title cards, chapter dividers, or branded content between scenes — anything that doesn't exist in the app itself — offer to create a local HTML file and navigate the Electron window to it during a pause.
-
-### Pattern
-
-1. Create an HTML file next to the recording script
-2. Pause recording, navigate to the HTML file, compose the shot, resume
+For title cards, chapter dividers, or branded content between scenes — anything that doesn't exist in the app itself — offer to create a local HTML file and navigate the Electron window to it during a pause.
 
 ```typescript
-// Show a title card between scenes
 await session.pause();
 await page.goto(`file://${path.join(__dirname, 'title-card.html')}`, {
   waitUntil: 'domcontentloaded',
@@ -475,25 +340,7 @@ await session.resume();
 await page.waitForTimeout(2500);  // hold the title card
 ```
 
-### Example HTML
-
-A minimal centered title card:
-
-```html
-<!-- title-card.html -->
-<!DOCTYPE html>
-<html>
-<body style="margin:0; display:flex; align-items:center; justify-content:center;
-             height:100vh; background:#1a1a2e; color:#fff; font-family:system-ui;">
-  <div style="text-align:center;">
-    <h1 style="font-size:48px; font-weight:700; margin:0;">Feature Overview</h1>
-    <p style="font-size:24px; opacity:0.7; margin-top:12px;">Everything you need to know</p>
-  </div>
-</body>
-</html>
-```
-
-Style the HTML to match the video's visual identity — use the same background color/gradient, fonts, and color palette as the recording config. These screens should feel like part of the video, not a jarring cut to a different aesthetic.
+Write a minimal HTML file (centered `<h1>` + `<p>` on a matching background) next to the recording script. Style it to match the video's visual identity — same background color/gradient, fonts, and palette as the recording config. These screens should feel like part of the video, not a jarring cut to a different aesthetic.
 
 **Offer to create these HTML files** whenever the user describes content that isn't part of their app: section titles, "before vs. after" cards, feature lists, step numbers, branded intros/outros, or callout screens.
 
@@ -706,7 +553,6 @@ await page.waitForTimeout(800);           // let viewer absorb the result
 When a screen is busy, use an inverted mask to darken everything except the element you're about to interact with.
 
 ```typescript
-// Spotlight the feature before interacting
 const spotlight = await session.mask('.key-feature', {
   color: [0, 0, 0, 0.5],
   inverted: true,
@@ -783,44 +629,14 @@ External sites reuse class names. Combine multiple classes or use data-testid at
 '[data-testid="add-to-cart-btn"], button:has-text("Add to Bag")'
 ```
 
-### Electron Setup for External Sites
+### Electron Setup
 
 **Using the default main (`app.args` omitted) — nothing to configure.** NextDemo opens each recording in an ephemeral in-memory session and rewrites response `Set-Cookie` headers to `SameSite=None; Secure`, so real sites behave correctly out of the box:
 
-- **Ephemeral session** — cart state, localStorage, auth cookies from a previous run do not leak into this one. Without this, running a "click Add-to-Cart" recording twice fails because the site swaps the button for a quantity stepper. Set `app.persistSession: true` to keep state across runs.
+- **Ephemeral session** — cart state, localStorage, and auth cookies from a previous run do not leak into this one. Without this, running a "click Add-to-Cart" recording twice fails because the site swaps the button for a quantity stepper. Set `app.persistSession: true` to keep state across runs.
 - **SameSite rewrite** — the window starts at `about:blank`, so every navigation to a real origin looks cross-site. Without the rewrite, Lax/Strict cookies get dropped and consent banners, login redirects, and CSRF flows break silently. Set `app.cookies.rewriteSameSite: false` only when you are specifically testing SameSite enforcement.
 
-**Using a custom main (`app.args: [mainJs]`) — you are on your own.** These defaults apply only to the bundled default main. If your custom main navigates to third-party sites, replicate both behaviors in your `main.js`:
-
-```javascript
-const { app, BrowserWindow, session } = require('electron');
-
-function createWindow() {
-  // Fresh in-memory partition per run — no "persist:" prefix.
-  const partition = 'ephemeral-' + process.pid + '-' + Date.now();
-  const ses = session.fromPartition(partition);
-
-  // Rewrite Set-Cookie headers to SameSite=None; Secure.
-  ses.webRequest.onHeadersReceived((details, callback) => {
-    const headers = { ...details.responseHeaders };
-    const setCookie = headers['set-cookie'] || headers['Set-Cookie'];
-    if (setCookie) {
-      delete headers['set-cookie'];
-      delete headers['Set-Cookie'];
-      headers['Set-Cookie'] = setCookie.map(c =>
-        c.replace(/;\s*SameSite=\w+/gi, '; SameSite=None')
-          .replace(/;\s*Secure/gi, '') + '; Secure'
-      );
-    }
-    callback({ responseHeaders: headers });
-  });
-
-  const win = new BrowserWindow({
-    webPreferences: { partition /* , webSecurity: false if needed */ },
-  });
-  // ...
-}
-```
+**Using a custom main (`app.args: [mainJs]`) — you are on your own.** These defaults apply only to the bundled default main. If your custom main navigates to third-party sites, replicate both behaviors in your `main.js`: a fresh in-memory `session.fromPartition('ephemeral-' + process.pid + '-' + Date.now())` per run, and a `webRequest.onHeadersReceived` hook that rewrites every `Set-Cookie` to `SameSite=None; Secure`.
 
 ## Swift Reel / Dynamic Showcase Directing
 
@@ -891,21 +707,10 @@ For visual flashes in a montage, skip the load wait. Resume immediately — part
 
 ## Parallel Recording
 
-Declare multiple `video(...)` entries in a single script and the CLI records and renders them in parallel — each video gets its own Electron instance. You don't manage concurrency manually; just declare the videos.
-
-### Pattern: Multiple Videos in One Script
+Declare multiple `video(...)` entries in one script and the CLI records/renders them in parallel — each video gets its own Electron instance. You don't manage concurrency manually; just declare the videos.
 
 ```typescript
-import { video, defineConfig, APP } from 'nextdemo'
-import path from 'path'
-import { fileURLToPath } from 'url'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const mainJs = path.join(__dirname, 'main.js')
-
-defineConfig({
-  app: { args: [mainJs] },
-})
+defineConfig({ app: { args: [mainJs] } })
 
 video('overview', {}, async ({ session, page }) => {
   await page.waitForTimeout(1500);
@@ -915,78 +720,36 @@ video('overview', {}, async ({ session, page }) => {
   await page.waitForTimeout(1500);
 });
 
-video('settings', {
-  page: { waitFor: '[data-view="settings"]' },
-}, async ({ session, page }) => {
-  await page.click('[data-view="settings"]');
-  await page.waitForTimeout(500);
-  await session.frame('#toggle-dark', 'close-up');
-  await page.click('#toggle-dark');
-  await session.frame(APP, 'wide');
-  await page.waitForTimeout(1500);
-});
-
-video('deploy', {}, async ({ session, page }) => {
-  await page.waitForTimeout(1500);
-  await page.click('#deploy-btn');
-  await session.frame('.table-section', 'medium');
-  await page.waitForTimeout(1500);
-});
+video('settings', { page: { waitFor: '[data-view="settings"]' } }, async ({ session, page }) => { /* ... */ });
+video('deploy',   {},                                              async ({ session, page }) => { /* ... */ });
 ```
-
-Run as usual:
 
 ```bash
-# Record all videos (default concurrency = CPU cores)
-nextdemo record path/to/script.mjs
-
-# Limit concurrency (useful in memory-constrained CI)
-nextdemo record path/to/script.mjs --concurrency 2
-
-# Only one of them
-nextdemo record path/to/script.mjs --only deploy
+nextdemo record script.mjs                  # all videos; concurrency = CPU cores
+nextdemo record script.mjs --concurrency 2  # limit (memory-constrained CI)
+nextdemo record script.mjs --only deploy    # filter
 ```
 
-### Key Rules
+**Rules:**
+- Each `video(...)` is independent — its own Electron instance, its own output file.
+- The `name` becomes the output filename — filesystem-safe (`[A-Za-z0-9_-]+`).
+- Set up per-video state via `page.url` / `page.waitFor` / `onStart`.
+- Use `defineConfig(...)` at the top of the file to avoid repeating shared `app` / `config`.
 
-- **Each `video(...)` is independent** — its own Electron instance, its own output file
-- **The `name` passed to `video()` becomes the output filename** — make it filesystem-safe (`[A-Za-z0-9_-]+`)
-- **Set up per-video state via `page.url` / `page.waitFor` / `onStart`** — no need to open extra Playwright windows
-- **Use `defineConfig(...)` at the top of the file** to avoid repeating shared `app` / `config` across every video
-
-### When Separate Videos vs One Long Video
+**Separate videos vs one long video:**
 
 | Scenario | Approach |
 |----------|----------|
-| Multiple independent features to demo | **Separate `video(...)` entries** — they run in parallel |
-| Multi-step flow through one app (e.g. wizard) | **One `video(...)`** — sequential scenes in a single body |
-| Same feature, different configs/themes | **Separate `video(...)` entries** with different `config` |
-| Long single recording | **One `video(...)`** |
-
-## Running
-
-```bash
-# Record (captures + renders all videos, parallel by default)
-nextdemo record path/to/script.mjs
-
-# Record with limited concurrency
-nextdemo record path/to/script.mjs --concurrency 2
-
-# Filter which videos run
-nextdemo record path/to/script.mjs --only intro --only outro
-nextdemo record path/to/script.mjs --skip wip
-
-# Activate a license
-nextdemo activate <license-key>
-```
+| Multiple independent features to demo | Separate `video(...)` entries — they run in parallel |
+| Multi-step flow through one app (e.g. wizard) | One `video(...)` — sequential scenes in a single body |
+| Same feature, different configs/themes | Separate `video(...)` entries with different `config` |
+| Long single recording | One `video(...)` |
 
 ## Project Setup
 
-The script needs `nextdemo` (which provides `video`, `defineConfig`, and `APP`) and `playwright` installed:
-
 ```bash
-npm install playwright
-npm install nextdemo
+npm install playwright nextdemo
+nextdemo activate <license-key>   # activate before first run
 ```
 
 ## Before Writing a Script
