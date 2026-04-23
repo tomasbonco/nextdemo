@@ -671,7 +671,7 @@ await page.waitForTimeout(400);
 
 ### 9. Select/Dropdown Interactions Need Space
 
-Dropdowns open overlays that need time to render and be seen.
+Dropdowns open overlays that need time to render and be seen. After selecting an option, always close the select element and wait 200ms before continuing — leaving it open causes visual artifacts in the recording.
 
 ```typescript
 await session.frame('.form-group-with-select', 'close-up');
@@ -680,6 +680,8 @@ await page.click('#category-select');
 await page.waitForTimeout(400);           // let dropdown open
 await page.selectOption('#category-select', 'urgent');
 await page.waitForTimeout(600);           // let viewer see selection
+await page.click('#category-select');     // close the select
+await page.waitForTimeout(200);           // wait for it to close
 ```
 
 ### 10. Use Pause to Skip the Boring Parts
