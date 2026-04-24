@@ -11,6 +11,10 @@ them, applies any `--only`/`--skip` filters, and dispatches each video with its
 own Electron instance. Supports macOS, Windows, and Linux (auto-spawns Xvfb in
 headless CI).
 
+> **Before you start, check NextDemo is installed.** Run `nextdemo types-path` — it prints the absolute path to the SDK types file on success. If the command fails (not-found, non-zero exit), stop and tell the user: *"NextDemo isn't installed yet. Grab it from https://nextdemo.app, activate your license, then come back."* The skill can't produce working scripts without the CLI — it's the runtime that captures the Electron window.
+>
+> **Read the types file** that `types-path` prints — it's the source of truth for every API signature, option, and default referenced below, with full JSDoc. This skill teaches how to *combine* the API into good-looking videos; the types teach shape and defaults.
+
 ## Script Structure
 
 ```typescript
@@ -63,50 +67,25 @@ nextdemo record record.mjs --only a --only b          # multiple (OR)
 
 `import { video, defineConfig, APP } from 'nextdemo'`
 
-| Function | Description |
-|----------|-------------|
-| `video(name, opts, fn)` | Register a video. `name` must match `[A-Za-z0-9_-]+`. `fn` receives `{ session, page }`. |
-| `video.only(name, opts, fn)` | Register and force to be the only one run (combined with other `.only`s / CLI `--only` via OR). |
-| `video.skip(name, opts, fn)` | Register but skip. Useful for temporary disabling. |
-| `defineConfig(defaults)` | Set module-scoped defaults merged into every subsequent `video(...)` call. Call at most once per file. |
-| `APP` | Sentinel for `session.frame(APP, ...)` / `session.zoom(APP, ...)` to frame the full window. |
+- `video(name, opts, fn)` — register a video. `name` must match `[A-Za-z0-9_-]+`. `fn` receives `{ session, page }`.
+- `video.only(name, opts, fn)` — register and force to be the only one run (combined with other `.only`s / CLI `--only` via OR).
+- `video.skip(name, opts, fn)` — register but skip. Useful for temporary disabling.
+- `defineConfig(defaults)` — module-scoped defaults merged into every subsequent `video(...)`. Call at most once per file.
+- `APP` — sentinel for `session.frame(APP, ...)` / `session.zoom(APP, ...)` to target the full window.
 
-### VideoOptions
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `app` | `LaunchOptions?` | Playwright Electron launch options (`args`, `executablePath`, `env`, ...). If `args` is omitted, NextDemo launches a bundled default Electron main (blank `BrowserWindow`) and you must supply `page.url`. |
-| `app.persistSession` | `boolean?` | Default `false`. Only applies when `args` is omitted. When `false`, each run gets a fresh in-memory Electron partition so cookies, localStorage, IndexedDB, and cache do not leak between recordings. Set `true` if you need state to survive across runs. |
-| `app.cookies.rewriteSameSite` | `boolean?` | Default `true`. Only applies when `args` is omitted. Rewrites response `Set-Cookie` headers to `SameSite=None; Secure` so third-party cookies work when the window starts at `about:blank` and then navigates to a real origin. Set `false` only if you are specifically testing SameSite enforcement. |
-| `page.url` | `string?` | If set, navigates here before capture (waits for `domcontentloaded`). Required when `app.args` is omitted. |
-| `page.waitFor` | `string?` | CSS selector to wait for before `onStart`. |
-| `config` | `ProjectConfig?` | Render/output config (background, chrome, zoom, output, masks, window size). See sections below. |
-| `onStart` | `(ctx) => Promise<void>?` | Runs before frame 0; calls stamp at frame 0. Use for initial framing, hide cursor, create masks. |
-| `outDir` | `string?` | Override final MP4 output directory. |
-| `fps` | `number?` | Override capture fps for this video. Default 30. |
+**`VideoOptions` fields** (`app`, `app.persistSession`, `app.cookies.rewriteSameSite`, `page.url`, `page.waitFor`, `config`, `onStart`, `outDir`, `fps`) have full JSDoc in the types file (see `nextdemo types-path`). Key gotcha: you must supply at least one of `app.args` or `page.url` — neither is an error.
 
 ### Callback context `{ session, page }`
 
-- `session` — **recording directives only**. No escape hatch to Playwright.
-- `page` — the **Playwright Page**, proxied for action tracking. `page.click / fill / type / hover / press / selectOption / check / uncheck` automatically emit recording events (cursor ripples, typing animation, key-combo overlays). Everything else on `page` passes through to vanilla Playwright.
+`session` is the recording-directives API (below). `page` is the Playwright `Page`, proxied so `click / fill / type / hover / press / selectOption / check / uncheck` automatically emit recording events (cursor ripples, typing animation, key-combo overlays); everything else passes through to vanilla Playwright.
 
 ### Session methods
 
-| Method | Description |
-|--------|-------------|
-| `session.frame(selector, framing?, opts?)` | Frame camera on element — backward-looking: the camera is already in position before the next action plays. Framing: `'super-close-up'`, `'close-up'` (default), `'medium'`, `'wide'`. Optional `opts: { duration?: number, easing?: string }` overrides transition. |
-| `session.frame(APP, framing?, opts?)` | Frame camera on full app window. Use `session.frame(APP, 'wide')` to reset to full view. |
-| `session.zoom(selector, framing?, opts?)` | Zoom camera to element — the transition starts now (forward-looking). The viewer watches the camera travel. Same framing levels and opts as `frame()`. |
-| `session.zoom(APP, framing?, opts?)` | Zoom camera to full app window (forward-looking). The viewer watches the camera travel. |
-| `session.pause()` | Pause recording. Frames captured while paused are skipped in the final video. |
-| `session.resume()` | Resume recording after a pause. The gap is seamlessly bridged — no visible discontinuity. |
-| `session.mask(selector, opts?)` | Create a mask layer over an element. Returns `MaskHandle`. See Masks section. |
-| `session.followCursor(opts?)` | Viewport tracks cursor. Optional `{ zoom: 'medium', duration: 500 }`. Prefer calling without zoom param to inherit current zoom state — set zoom level separately before enabling. |
-| `session.stopFollowing()` | Stop following cursor or followType. Viewport freezes at current position. |
-| `session.followType(selector, opts?)` | Follow text caret in an input/textarea/contenteditable — auto-zooms and tracks typing. `opts: { zoom?: Framing, cursor?: boolean, duration?: number }`. Defaults: zoom `'super-close-up'`, cursor hidden. Call `stopFollowing()` to end. |
-| `session.hideCursor()` | Hide the mouse cursor from the recording. |
-| `session.showCursor()` | Show the mouse cursor in the recording. |
-| `session.showKeys(keys)` | Show keyboard shortcut overlay. `keys` is `"Cmd+S"` or `["⌘", "S"]`. Auto-captured for modifier combos via `page.keyboard.press()`. |
+Camera: `frame`, `zoom`. Follow modes: `followCursor`, `followType`, `stopFollowing`. Overlays & control: `mask`, `pause`, `resume`, `showKeys`, `hideCursor`, `showCursor`, `scrollGesture`. Signatures and per-method JSDoc live in the types file.
+
+**Key distinction — `frame` vs `zoom`:** `frame()` is **backward-looking** (camera already in position by the time the next action plays — viewer arrives at the shot). `zoom()` is **forward-looking** (transition plays now, viewer watches the camera travel). Choose based on whether you want arrival or reveal.
+
+**`followCursor` tip:** prefer calling without the `zoom` param — set the zoom level separately with `frame()` first so follow mode inherits the current framing.
 
 ### Framing Levels
 
@@ -120,8 +99,6 @@ When zooming to a CSS selector, the element must fit in frame with padding aroun
 | `'wide'` | Lots of surrounding UI visible. Establishing shots, showing effect of an action | Full desktop, window at actual size, lots of background. Establishing/closing shots |
 
 ### Per-Frame/Zoom Duration Override
-
-Override the default transition duration (600ms) on any `frame()` or `zoom()` call. Use `easing` for cinematic effect.
 
 ```typescript
 await session.frame('.header', 'medium', { duration: 300 });              // fast 300ms transition
@@ -189,31 +166,7 @@ Create overlay layers on elements for spotlight effects, blur/redaction, and cov
 const mask = await session.mask(selector, opts?)
 ```
 
-**MaskOptions:**
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `color` | `[r, g, b, a]` | `[0, 0, 0, 0]` | RGBA — RGB values 0–255, alpha 0–1 |
-| `blur` | `number` | `0` | Blur strength 0–1 |
-| `distance` | `number` | `0` | Padding around element in output px. **Negative values crop into the element** (mask smaller than element) |
-| `feather` | `number` | `0` | Soft-edge gradient width in output px |
-| `inverted` | `boolean` | `false` | `true` = spotlight (dark overlay with element cut out) |
-| `borderRadius` | `number` | inherited | Override corner radius in output px. Use `0` for sharp rectangular mask |
-| `z` | `number` | `0` | Layer order for compositing (higher = on top) |
-
-**Pixel units:** `distance`, `feather`, and `borderRadius` are in **output video pixels** — what you specify is what you see at the final output resolution, regardless of internal render resolution.
-
-**MaskHandle methods:**
-
-| Method | Description |
-|--------|-------------|
-| `mask.fadeIn(duration_ms)` | Animate opacity to target over duration |
-| `mask.fadeOut(duration_ms)` | Animate opacity to 0 over duration |
-| `mask.show()` | Instant show (fadeIn with 0ms) |
-| `mask.hide()` | Instant hide (fadeOut with 0ms) |
-| `mask.morph(props, duration_ms)` | Animate any mask properties including re-targeting to a different selector |
-
-**MorphProps** (all optional): `selector`, `color`, `blur`, `distance`, `feather`, `z`.
+Options (`color`, `blur`, `distance`, `feather`, `inverted`, `borderRadius`, `z`) and handle methods (`fadeIn`, `fadeOut`, `show`, `hide`, `morph`) are in the types file. **One gotcha:** `distance`, `feather`, and `borderRadius` are in **output video pixels** — what you specify is what you see at final resolution, regardless of internal render resolution. Negative `distance` crops INTO the element.
 
 ### Spotlight (inverted mask)
 
@@ -274,8 +227,6 @@ config: {
 }
 ```
 
-When `image` is set, the PNG replaces the entire title bar — background, traffic lights, everything. The image is stretched to fit the rendered title bar dimensions.
-
 ### Cursors
 
 Default cursors are pixel-art style (Minecraft-like blocky design). Override with custom PNGs per cursor type.
@@ -298,7 +249,7 @@ config: {
 }
 ```
 
-Custom cursor PNGs should have transparency (RGBA). The hotspot is at the top-left corner. The image is scaled so its height maps to ~35px at scale 1.0. Each cursor type is independent — setting only `arrow_image` keeps the built-in pixel-art I-beam.
+Each cursor type is independent — setting only `arrow_image` keeps the built-in pixel-art I-beam.
 
 ### Keyboard Overlay
 
