@@ -97,6 +97,25 @@ When zooming to a CSS selector, the element must fit in frame with padding aroun
 | `'close-up'` | Minimal padding around element (default for elements). Buttons, small components | Window fills the frame. Focus on the app |
 | `'medium'` | Generous padding, shows context. Checkboxes (show labels), form groups, cards | Window with some background (default starting shot) |
 | `'wide'` | Lots of surrounding UI visible. Establishing shots, showing effect of an action | Full desktop, window at actual size, lots of background. Establishing/closing shots |
+| `'cover'` | Element completely fills the frame; longer axis is cropped if aspects differ | Window completely fills the frame; longer axis is cropped if aspects differ |
+| `'contain'` | Entire element is visible; shorter axis leaves bars (set background to hide) | Entire window is visible; shorter axis leaves bars (set background to hide) |
+
+**`'cover'` / `'contain'` — when to use.** These mirror CSS `background-size` and are designed for shots where the viewer should see **the maximum of the content with no surrounding chrome or desktop padding** — slide decks, title cards, full-screen demos, and any static custom content presented as the focus of the scene. Both ignore the cinematic fill-ratio used by the other levels and instead size the viewport directly from the subject's aspect ratio.
+
+- **`'cover'`** — the subject fully fills the output frame. If the subject's aspect ratio doesn't match the output, the longer axis is cropped. Use when filling the screen matters more than seeing every pixel of the slide.
+- **`'contain'`** — the entire subject is visible inside the output frame. If the aspect ratios differ, you'll see bars on the shorter axis. **Pair this with a project `background` color/gradient that matches the slide's own background** so the bars vanish into the surroundings — otherwise the viewer notices the letterboxing immediately.
+
+```typescript
+// Slide deck shown via session.frame(APP, 'contain') — set the background
+// to match the slide so no bars are visible:
+config: {
+  background: { type: 'solid', color: '#0f0f23' },  // = slide bg
+}
+
+await session.frame(APP, 'contain', { duration: 0 });  // whole slide visible, no bars
+// or
+await session.frame(APP, 'cover', { duration: 0 });    // slide fills frame, edges cropped
+```
 
 ### Per-Frame/Zoom Duration Override
 
@@ -271,7 +290,7 @@ config: {
 ```typescript
 config: {
   zoom: {
-    initial_zoom: "medium",       // starting zoom: "wide" (default) | "medium" | "close-up" | "super-close-up"
+    initial_zoom: "medium",       // starting zoom: "wide" (default) | "medium" | "close-up" | "super-close-up" | "cover" | "contain"
     default_transition_ms: 600,   // default zoom transition duration in ms (default: 600)
   },
 }
