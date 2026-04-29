@@ -1,0 +1,83 @@
+name: Bug report
+description: Something is broken or behaving unexpectedly in NextDemo.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report.
+
+        **Tip:** you can run `nextdemo open-issue` from your terminal to open this form with the environment fields already filled in.
+
+  - type: input
+    id: nextdemo-version
+    attributes:
+      label: NextDemo version
+      description: Output of `nextdemo --version`.
+      placeholder: "e.g. 0.5.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      description: e.g. macOS 14.4, Windows 11 23H2, Ubuntu 24.04.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: arch
+    attributes:
+      label: Architecture
+      options:
+        - arm64 (Apple Silicon / ARM)
+        - x64 (Intel / AMD64)
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: script
+    attributes:
+      label: Recording script
+      description: A minimal script that reproduces the issue. Strip out anything project-specific.
+      render: javascript
+    validations:
+      required: false
+
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Recording or screenshot
+      description: Drag and drop a video, image, or log file here that shows the issue.
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Logs, related issues, workarounds you tried, etc.
+    validations:
+      required: false

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: NextDemo documentation
+    url: https://nextdemo.app/docs
+    about: Setup, recording primitives, and the full API reference.
+  - name: nextdemo-record skill
+    url: https://github.com/tomasbonco/nextdemo/blob/main/skills/nextdemo-record/SKILL.md
+    about: How an AI agent should write recording scripts for your app.
