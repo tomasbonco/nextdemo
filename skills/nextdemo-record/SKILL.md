@@ -15,9 +15,32 @@ headless CI).
 >
 > **Read the types file** that `types-path` prints — it's the source of truth for every API signature, option, and default referenced below, with full JSDoc. This skill teaches how to *combine* the API into good-looking videos; the types teach shape and defaults.
 
+## Version Stamp
+
+Every recording script carries the SDK version it was authored against as a one-line stamp on **line 1**:
+
+```typescript
+// nextdemo-api: 1.0.0
+import { video, defineConfig, APP } from 'nextdemo'
+```
+
+Format is exact — `// nextdemo-api: <semver>`, no surrounding text, always line 1. The stamp exists so this skill can detect API drift after the user upgrades `nextdemo` and reconcile old scripts before adding new code.
+
+**Generating a new script:** run `nextdemo --version` and write the result into the stamp. Never invent a version, never omit it.
+
+**Editing an existing script:** read line 1. If the stamp matches `nextdemo --version`, proceed. If it lags (or is missing), reconcile first:
+
+1. Re-read the types file (`nextdemo types-path`) — it is the source of truth for the current API.
+2. Walk every `session.*`, `video(...)`, `defineConfig(...)`, and option name in the script. Any signature, option, or method that no longer matches the types file gets rewritten to its current equivalent.
+3. Bump the stamp on line 1 to the installed version.
+4. Then do the user's requested change.
+
+Reconciliation runs **before** the user's change, never after, so the script is on the current API by the time new code is added. Silent semantic changes (e.g. a default flipping) can't be caught this way — if a future release introduces one, instructions for handling it will be added here.
+
 ## Script Structure
 
 ```typescript
+// nextdemo-api: 1.0.0
 import { video, defineConfig, APP } from 'nextdemo'
 import path from 'path'
 import { fileURLToPath } from 'url'
