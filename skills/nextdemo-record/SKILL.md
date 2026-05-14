@@ -559,6 +559,27 @@ await page.waitForTimeout(200);
 await page.click('.key-feature button');
 ```
 
+### 12. Always Smooth-Scroll
+
+Jump-scrolls (instant `scrollTo`, default `scrollIntoView`, a single big `mouse.wheel` delta) teleport the page and break the viewer's spatial continuity. Whenever a recording needs to move the page, scroll smoothly so the viewer's eye can track the content.
+
+```typescript
+// GOOD — smooth-scrolls the page; viewer follows the motion
+await page.evaluate(() => window.scrollTo({ top: 1200, behavior: 'smooth' }));
+await page.waitForTimeout(900);
+
+// GOOD — smooth-scroll an element into view
+await page.evaluate((sel) => {
+  document.querySelector(sel)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}, '.pricing-table');
+await page.waitForTimeout(900);
+
+// BAD — instant jump, viewer loses context
+await page.evaluate(() => window.scrollTo(0, 1200));
+```
+
+If you use `session.scrollGesture()` to show cursor scroll chevrons, drive the page itself with a smooth scroll alongside — the gesture is the indicator, not the motion.
+
 ## Key Playwright Actions for Demos
 
 | Action | Usage | Notes |
