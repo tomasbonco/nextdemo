@@ -104,7 +104,7 @@ nextdemo record record.mjs --only a --only b          # multiple (OR)
 
 ### Session methods
 
-Camera: `frame`, `zoom`. Follow modes: `followCursor`, `followType`, `stopFollowing`. Overlays & control: `mask`, `pause`, `resume`, `showKeys`, `hideCursor`, `showCursor`, `scrollGesture`. Signatures and per-method JSDoc live in the types file.
+Camera: `frame`, `zoom`. Follow modes: `followCursor`, `followType`, `stopFollowing`. Overlays & control: `mask`, `pause`, `resume`, `showKeys`, `hideCursor`, `showCursor`, `scrollGesture`. Backgrounds: `animateBg`. Signatures and per-method JSDoc live in the types file.
 
 **Key distinction — `frame` vs `zoom`:** `frame()` is **backward-looking** (camera already in position by the time the next action plays — viewer arrives at the shot). `zoom()` is **forward-looking** (transition plays now, viewer watches the camera travel). Choose based on whether you want arrival or reveal.
 
@@ -255,6 +255,27 @@ config: {
   },
 }
 ```
+
+### Animated Backgrounds
+
+The initial `config.background` is the static starting state. To change it mid-recording, call `session.animateBg(target, duration_ms)`.
+
+Preview the effect: [animated-bg.mp4](../../examples/animated-bg.mp4). Full runnable example: [animated-bg.mjs](../../examples/animated-bg.mjs).
+
+```typescript
+// 1. Switch the whole background by passing a full BackgroundConfig
+//    (with `type`). Solid → solid lerps RGBA; cross-type pixel-blends.
+await session.animateBg({ type: 'solid', color: '#d94f30' }, 1500);
+
+// 2. Animate fields of the *current* background by passing a partial.
+//    Sweep a gradient's angle 0° → 360° over 5s — the seam visibly
+//    rotates across the canvas rather than cross-fading between stills.
+await session.animateBg({ gradient: { angle: 360 } }, 5000);
+```
+
+Same-shape transitions (solid↔solid, matching gradient↔gradient) animate the parameters directly — output is rasterised every frame at full resolution. Different-shape transitions (solid↔gradient, anything↔image) cross-fade between the two rasterised endpoints. Field validation rejects partials that don't fit the active variant (e.g. `{ gradient: {...} }` on a solid background) — pass a full config including `type` to switch shapes.
+
+Like every animated `session.*` method, the `await` here blocks the script's wall-clock for `duration_ms` so the next directive lands after the transition. Drop the `await` to let the animation play *under* whatever comes next — same behavior as `frame`/`zoom`/`mask`, not specific to backgrounds.
 
 ### Chrome (Window Title Bar)
 
