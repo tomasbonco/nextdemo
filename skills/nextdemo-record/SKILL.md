@@ -10,3 +10,9 @@ NextDemo is a screen recording tool for creating demo videos of apps. Use this s
 1. **Confirm nextdemo is installed.** Run `nextdemo --version`. If the command isn't found, instruct the user to install it (`npm i -g nextdemo`) or invoke it on-demand via `npx nextdemo`. The skill cannot produce working scripts without the CLI — it is the runtime that captures the window.
 2. **Load the authoring guide.** Run `nextdemo skill` and follow the guide it prints. That output is the version-coherent authoring guide for the user's installed CLI — it teaches exactly the primitives, options, and patterns that the user's binary supports. It is the source of truth for *how* to write a recording script.
 3. **Surface any "Update available" banner.** If the first lines of `nextdemo skill`'s output begin with `Update available:`, relay that banner to the user before continuing. They may want to upgrade first to access the newest primitives, especially for a major bump (which carries an EULA change).
+
+## Key behaviors to know before writing scripts
+
+**Chrome (window frame) defaults to automatic.** When you record a mobile-emulated page — a phone-sized viewport or a page with touch/mobile emulation — NextDemo automatically renders a phone frame around it. You don't need to set `chrome.style` at all for mobile recordings. Set `style` explicitly (`"none"`, `"macos"`, `"windows"`) if you want a specific look or need to opt out of the phone frame, for example for a vertical export without a bezel.
+
+**Cursor preset defaults to automatic.** The cursor follows the detected device: mobile-emulated recordings get a touch circle by default; desktop recordings get the arrow + I-beam. This is independent of the chrome setting — a touch recording keeps its touch cursor even with `chrome.style: "none"`. Override with `preset: "default"` or `preset: "mobile"` to force a specific cursor regardless of detection.
