@@ -45,7 +45,7 @@ video('showcase', {
     output: {
       width: 768,
       height: 500,
-      quality: 0.5,
+      quality: 0.92,
       virtual_display_width: 1920,
       virtual_display_height: 1080,
     },
