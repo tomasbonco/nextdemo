@@ -13,6 +13,6 @@ NextDemo is a screen recording tool for creating demo videos of apps. Use this s
 
 ## Key behaviors to know before writing scripts
 
-**Chrome (window frame) defaults to automatic.** When you record a mobile-emulated page — a phone-sized viewport or a page with touch/mobile emulation — NextDemo automatically renders a phone frame around it. You don't need to set `chrome.style` at all for mobile recordings. Set `style` explicitly (`"none"`, `"macos"`, `"windows"`) if you want a specific look or need to opt out of the phone frame, for example for a vertical export without a bezel.
+**Chrome (window frame) defaults to automatic.** For mobile recordings set `chrome: { "style": "phone" }` — it turns on real device emulation (mobile UA, touch, device pixel ratio) and renders the phone frame. Auto-detection only reacts to pages that already report mobile (mobile UA or coarse pointer); a phone-sized viewport alone intentionally records as a desktop window, because vertical chrome-less exports are a valid format of their own. Set `style` explicitly (`"none"`, `"macos"`, `"windows"`) to force a specific look or opt out of the phone frame.
 
 **Cursor preset defaults to automatic.** The cursor follows the chrome: a phone frame gets a touch circle, anything else gets the arrow + I-beam. Override `chrome.style` and the cursor follows. To force a touch cursor without the phone bezel (e.g. for a chrome-less mobile export), set `preset: "mobile"` explicitly; set `preset: "default"` for the arrow regardless.
