@@ -24,4 +24,4 @@ Full docs: [nextdemo.app/docs](https://nextdemo.app/docs)
 
 ## License
 
-Plugin files in this repository (skill definitions, examples, manifests) are MIT licensed. NextDemo itself is proprietary — see [nextdemo.app/legal/eula](https://nextdemo.app/legal/eula).
+Plugin files in this repository (skill definitions, manifests) are MIT licensed. NextDemo itself is proprietary — see [nextdemo.app/legal/eula](https://nextdemo.app/legal/eula).
