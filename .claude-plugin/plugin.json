@@ -2,11 +2,12 @@
   "name": "nextdemo-record",
   "version": "1.0.0",
   "description": "Create Playwright-based screen recording scripts for Electron app demos with NextDemo",
-  "skills": [
-    {
-      "name": "nextdemo-record",
-      "path": "skills/nextdemo-record/SKILL.md",
-      "description": "Use when the user asks to create a NextDemo recording script, demo video script, or Playwright-based screen recording for their Electron app"
-    }
-  ]
+  "author": {
+    "name": "Next Iteration s.r.o.",
+    "email": "info@nextiteration.company"
+  },
+  "homepage": "https://nextdemo.app",
+  "repository": "https://github.com/tomasbonco/nextdemo",
+  "license": "MIT",
+  "keywords": ["video", "recording", "reel", "changelog", "electron", "playwright"]
 }

@@ -1,5 +1,10 @@
 {
   "name": "tomasbonco-nextdemo",
+  "description": "NextDemo's Claude Code plugin for scripting Playwright-based screen recordings of Electron app demos",
+  "owner": {
+    "name": "Next Iteration s.r.o.",
+    "email": "info@nextiteration.company"
+  },
   "plugins": [
     {
       "name": "nextdemo-record",
