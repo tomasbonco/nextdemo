@@ -1,5 +1,5 @@
 {
-  "name": "nextdemo-record",
+  "name": "nextdemo",
   "version": "1.0.0",
   "description": "Create Playwright-based screen recording scripts for Electron app demos with NextDemo",
   "author": {

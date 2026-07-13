@@ -7,7 +7,7 @@
   },
   "plugins": [
     {
-      "name": "nextdemo-record",
+      "name": "nextdemo",
       "source": "."
     }
   ]

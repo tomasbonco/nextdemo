@@ -1,5 +1,5 @@
 ---
-name: nextdemo-record
+name: record
 description: Use when the user wants to record a polished demo video of a web app, CLI, or Electron app. NextDemo captures via Playwright + Electron and produces studio-quality mp4 output with cursor effects, zooms, and transitions.
 ---
 
