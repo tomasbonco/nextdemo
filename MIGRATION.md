@@ -8,7 +8,7 @@ Breaking changes to the NextDemo recording API, newest first. If you are editing
 recording script written against an older version and the SDK no longer recognizes
 an API it uses, find it below.
 
-## vNEXT — recording starts on the first `session.resume()`
+## v1.4 — recording starts on the first `session.resume()`
 
 **What changed.** A recording is now **paused until you call `session.resume()`**.
 Compose the opening shot — navigate, wait for assets, set the camera — first; the
