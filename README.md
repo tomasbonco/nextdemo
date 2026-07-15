@@ -1,21 +1,34 @@
 # NextDemo
 
-Polished demo videos of your app — scripted, reproducible, pixel-perfect.
+**The demo records itself.**
 
-NextDemo records your Electron app with cinematic zoom, spotlight masks, cursor tracking, and keyboard overlays. Write a Playwright script, run `nextdemo record`, get a video.
+Tell your agent what to demo — it writes the script, NextDemo renders the mp4. Cinematic zoom, spotlight masks, cursor tracking, keyboard overlays, pixel-perfect every time. Whenever the product changes, re-render in minutes instead of re-shooting.
 
-## Get Started
+Works for web apps, Electron apps, and mobile-web flows, driven through Playwright.
 
-Visit **[nextdemo.app/docs/installation](https://nextdemo.app/docs/installation)** for setup instructions.
+## Install
 
-## Quick Install
+Paste this into your agent:
+
+```
+Install https://nextdemo.app/install.md
+```
+
+It checks Node.js and ffmpeg, installs NextDemo and this skill, activates your license, and records a verification clip to prove the pipeline works — then asks what you'd like to film. Works with Claude Code, Codex, Cursor, Gemini CLI, Copilot, Windsurf, or any agent that can fetch a URL and run shell commands.
+
+<details>
+<summary>Manual install</summary>
 
 ```
 npm install nextdemo
 npx skills add tomasbonco/nextdemo
+nextdemo activate <license-key>
+nextdemo --version
 ```
 
-Full docs: [nextdemo.app/docs](https://nextdemo.app/docs)
+</details>
+
+Full docs: [nextdemo.app/start](https://nextdemo.app/start)
 
 ## Links
 
