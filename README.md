@@ -22,8 +22,8 @@ It checks Node.js and ffmpeg, installs NextDemo and this skill, activates your l
 ```
 npm install nextdemo
 npx skills add tomasbonco/nextdemo
-nextdemo activate <license-key>
-nextdemo --version
+npx nextdemo activate <license-key>
+npx nextdemo --version
 ```
 
 </details>
