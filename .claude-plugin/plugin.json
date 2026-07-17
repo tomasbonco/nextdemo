@@ -1,7 +1,7 @@
 {
   "name": "nextdemo",
   "version": "1.0.0",
-  "description": "Create Playwright-based screen recording scripts for Electron app demos with NextDemo",
+  "description": "Record demo videos of your app from a script your coding agent can write.",
   "author": {
     "name": "Next Iteration s.r.o.",
     "email": "info@nextiteration.company"
